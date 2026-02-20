@@ -230,11 +230,8 @@ export class LightmapperMaterial extends ShaderMaterial {
                             if ( l >= numLights ) break;
                             vec3 lightContrib = vec3(0.0);
                             float d = length(lightPositions[l] - rayOrigin);
-                            float attenuation = 1.0;
-                            if (lightDistances[l] > 0.0) {
-                                float ratio = clamp(d / lightDistances[l], 0.0, 1.0);
-                                attenuation = (1.0 - ratio) * (1.0 - ratio);
-                            }
+                            float r = max(lightDistances[l], 0.001);
+                            float attenuation = 1.0 / (1.0 + (d * d) / (r * r));
                             for ( int i = 0; i < casts; i++ ) {
                                 vec3 newDirection = lightPositions[l] - (rayOrigin + randomSpherePoint(rand3() * 0.05) * lightSizes[l]);
 

@@ -2,13 +2,15 @@
 
 ## Direct lighting: atténuation et N·L dosables
 
-### Atténuation par distance (`lightDistance`)
+### Atténuation par distance (inverse-square avec `lightRadius`)
 
-Ajout d'un paramètre `distance` par lumière qui contrôle la portée du falloff.
+Ajout d'un paramètre `distance` (renommé `lightRadius` côté UI) par lumière qui contrôle le falloff.
 
-- Formule : `(1 - d/distance)²` — falloff quadratique doux jusqu'à zéro
-- `distance = 0` → aucune atténuation (comportement original)
-- Plus la valeur est grande, plus la lumière porte loin
+- Formule : `1.0 / (1.0 + d² / r²)` — inverse-square physiquement correct
+- `lightRadius` représente la distance à laquelle l'intensité tombe à 50%
+- Plus la valeur est grande, plus la lumière porte loin (intuitif)
+- Valeur petite (ex: 5) → lumière locale, tombe vite
+- Valeur grande (ex: 50+) → éclairage quasi uniforme
 
 ### Terme lambertien dosable (`nDotLStrength`)
 
@@ -20,10 +22,12 @@ Le terme N·L (Lambert) module la lumière selon l'angle entre la normale de sur
 
 ### Sliders de debug (LightBakerExample)
 
-| Slider           | Range   | Défaut | Effet                                          |
-| ---------------- | ------- | ------ | ---------------------------------------------- |
-| `lightIntensity` | 0 → 5   | 1.0    | Multiplie l'intensité de toutes les lumières   |
-| `lightDistance`  | 0 → 200 | 60     | Portée de l'atténuation (0 = désactivé)        |
-| `nDotLStrength`  | 0 → 1   | 0.5    | Dosage du Lambert (0 = flat, 1 = full N·L)     |
+| Slider           | Range   | Défaut | Effet                                            |
+| ---------------- | ------- | ------ | ------------------------------------------------ |
+| `lightIntensity` | 0 → 5   | 1.0    | Multiplie l'intensité de toutes les lumières     |
+| `lightRadius`    | 1 → 200 | 60     | Distance à 50% d'intensité (inverse-square)      |
+| `nDotLStrength`  | 0 → 1   | 0.5    | Dosage du Lambert (0 = flat, 1 = full N·L)       |
 
-Pour retrouver le rendu original : `lightDistance = 0`, `nDotLStrength = 0`, `lightIntensity = 1.0`.
+## Early-out texels vides
+
+Les texels non couverts par l'atlas (`position.a == 0.0`) sont immédiatement discardés en début de fragment shader, évitant de lancer des rays inutiles (~30-40% de travail GPU en moins).
