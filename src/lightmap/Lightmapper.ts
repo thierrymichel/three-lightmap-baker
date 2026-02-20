@@ -58,7 +58,6 @@ export const generateLightmapper = (
     normals,
     casts: options.casts,
     lights: options.lights,
-    opacity: 1,
     sampleIndex: 0,
     directLightEnabled: options.directLightEnabled,
     indirectLightEnabled: options.indirectLightEnabled,
@@ -67,35 +66,47 @@ export const generateLightmapper = (
     nDotLStrength: options.nDotLStrength,
   })
 
-  const renderTexture = new WebGLRenderTarget(
+  const rtOptions = {
+    type: FloatType,
+    minFilter: LinearMipMapLinearFilter,
+    magFilter: LinearFilter,
+    generateMipmaps: true,
+  }
+  const rtA = new WebGLRenderTarget(
     options.resolution,
     options.resolution,
-    {
-      type: FloatType,
-      minFilter: LinearMipMapLinearFilter,
-      magFilter: LinearFilter,
-      generateMipmaps: true,
-    },
+    rtOptions,
   )
-  renderer.setRenderTarget(renderTexture)
-  renderer.setClearColor(0xff0000, 0)
-  renderer.clear()
+  const rtB = new WebGLRenderTarget(
+    options.resolution,
+    options.resolution,
+    rtOptions,
+  )
+
+  for (const rt of [rtA, rtB]) {
+    renderer.setRenderTarget(rt)
+    renderer.setClearColor(0x000000, 0)
+    renderer.clear()
+  }
 
   const raycastMesh = new Mesh(new PlaneGeometry(2, 2), raycastMaterial)
   const orthographicCamera = new OrthographicCamera()
 
   let totalSamples = 0
+  let readTarget = rtA
+  let writeTarget = rtB
 
   const render = () => {
-    renderer.setRenderTarget(renderTexture)
-
     raycastMaterial.uniforms.sampleIndex.value = totalSamples
-    raycastMaterial.uniforms.opacity.value =
-      totalSamples === 0 ? 1 : 1 / totalSamples
+    raycastMaterial.uniforms.previousFrame.value = readTarget.texture
 
+    renderer.setRenderTarget(writeTarget)
     renderer.render(raycastMesh, orthographicCamera)
-
     renderer.setRenderTarget(null)
+
+    const tmp = readTarget
+    readTarget = writeTarget
+    writeTarget = tmp
 
     totalSamples++
 
@@ -105,7 +116,9 @@ export const generateLightmapper = (
   renderer.setRenderTarget(null)
 
   return {
-    renderTexture,
+    get renderTexture() {
+      return readTarget
+    },
     render,
   }
 }

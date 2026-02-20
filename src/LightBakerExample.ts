@@ -322,7 +322,7 @@ export class LightBakerExample {
     setTimeout(() => {
       this.options.pause = true
       this.pane.refresh()
-    }, 2000)
+    }, 2500)
   }
 
   createDebugTexture(texture: Texture, position: Vector3) {
@@ -431,7 +431,9 @@ export class LightBakerExample {
     requestAnimationFrame(() => this.update())
 
     if (this.lightmapper && !this.options.pause) {
-      this.lightmapper.render()
+      const samples = this.lightmapper.render()
+
+      console.log('samples', samples)
     }
     this.controls.update()
     this.renderer.render(this.scene, this.camera)

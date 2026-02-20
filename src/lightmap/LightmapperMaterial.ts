@@ -21,7 +21,6 @@ export type LightmapperMaterialOptions = {
 
   lights: LightDef[]
 
-  opacity: number
   sampleIndex: number
 
   directLightEnabled: boolean
@@ -58,8 +57,6 @@ export class LightmapperMaterial extends ShaderMaterial {
     )
 
     super({
-      transparent: true,
-
       uniforms: {
         bvh: { value: bvhUniformStruct },
         positions: { value: options.positions },
@@ -72,7 +69,7 @@ export class LightmapperMaterial extends ShaderMaterial {
         lightColors: { value: lightColors },
         lightDistances: { value: lightDistances },
         numLights: { value: Math.min(options.lights.length, MAX_LIGHTS) },
-        opacity: { value: 1 },
+        previousFrame: { value: null },
         sampleIndex: { value: 0 },
         directLightEnabled: { value: options.directLightEnabled },
         indirectLightEnabled: { value: options.indirectLightEnabled },
@@ -114,7 +111,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform bool ambientLightEnabled;
                 uniform float ambientDistance;
                 uniform float nDotLStrength;
-                uniform float opacity;
+                uniform sampler2D previousFrame;
 
                 uniform BVH bvh;
                 varying vec2 vUv;
@@ -271,7 +268,13 @@ export class LightmapperMaterial extends ShaderMaterial {
                         }
                     }
 
-                    finalColor.a = opacity;
+                    finalColor.a = 1.0;
+
+                    if(sampleIndex > 0) {
+                        vec4 previous = texture2D(previousFrame, vUv);
+                        float weight = 1.0 / float(sampleIndex + 1);
+                        finalColor = mix(previous, finalColor, weight);
+                    }
 
                     gl_FragColor = finalColor;
                 }
