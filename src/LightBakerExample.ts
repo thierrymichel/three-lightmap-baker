@@ -82,6 +82,9 @@ export class LightBakerExample {
     indirectLightEnabled: true,
     ambientLightEnabled: true,
     ambientDistance: 0.3,
+    lightIntensity: 1.0,
+    lightDistance: 60,
+    nDotLStrength: 0.5,
     debugTextures: false,
     pause: false,
   }
@@ -164,6 +167,21 @@ export class LightBakerExample {
     this.pane.addBinding(this.options, 'ambientDistance', {
       max: 2,
       min: 0.01,
+    })
+    this.pane.addBinding(this.options, 'lightIntensity', {
+      max: 5,
+      min: 0,
+      step: 0.1,
+    })
+    this.pane.addBinding(this.options, 'lightDistance', {
+      max: 200,
+      min: 0,
+      step: 1,
+    })
+    this.pane.addBinding(this.options, 'nDotLStrength', {
+      max: 1,
+      min: 0,
+      step: 0.05,
     })
 
     this.pane
@@ -270,17 +288,20 @@ export class LightBakerExample {
         {
           position: this.lightDummy1.position,
           size: 3,
-          intensity: 0.5,
+          intensity: this.options.lightIntensity * 0.5,
           color: new Color(0xffffff),
+          distance: this.options.lightDistance,
         },
         {
           position: this.lightDummy2.position,
           size: 3,
-          intensity: 1.0,
+          intensity: this.options.lightIntensity,
           color: new Color(0xffffff),
+          distance: this.options.lightDistance,
         },
       ],
       ambientDistance: this.options.ambientDistance,
+      nDotLStrength: this.options.nDotLStrength,
       ambientLightEnabled: this.options.ambientLightEnabled,
       directLightEnabled: this.options.directLightEnabled,
       indirectLightEnabled: this.options.indirectLightEnabled,

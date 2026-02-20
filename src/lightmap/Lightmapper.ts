@@ -23,6 +23,7 @@ export type LightDef = {
   size: number
   intensity: number
   color: Color
+  distance: number
 }
 
 export type RaycastOptions = {
@@ -35,6 +36,7 @@ export type RaycastOptions = {
   indirectLightEnabled: boolean
   ambientLightEnabled: boolean
   ambientDistance: number
+  nDotLStrength: number
 }
 
 export type Lightmapper = {
@@ -62,6 +64,7 @@ export const generateLightmapper = (
     indirectLightEnabled: options.indirectLightEnabled,
     ambientLightEnabled: options.ambientLightEnabled,
     ambientDistance: options.ambientDistance,
+    nDotLStrength: options.nDotLStrength,
   })
 
   const renderTexture = new WebGLRenderTarget(

@@ -28,6 +28,7 @@ export type LightmapperMaterialOptions = {
   indirectLightEnabled: boolean
   ambientLightEnabled: boolean
   ambientDistance: number
+  nDotLStrength: number
 }
 
 export class LightmapperMaterial extends ShaderMaterial {
@@ -51,6 +52,10 @@ export class LightmapperMaterial extends ShaderMaterial {
       { length: MAX_LIGHTS },
       (_, i) => options.lights[i]?.color ?? new Color(0x000000),
     )
+    const lightDistances = Array.from(
+      { length: MAX_LIGHTS },
+      (_, i) => options.lights[i]?.distance ?? 0,
+    )
 
     super({
       transparent: true,
@@ -65,6 +70,7 @@ export class LightmapperMaterial extends ShaderMaterial {
         lightSizes: { value: lightSizes },
         lightIntensities: { value: lightIntensities },
         lightColors: { value: lightColors },
+        lightDistances: { value: lightDistances },
         numLights: { value: Math.min(options.lights.length, MAX_LIGHTS) },
         opacity: { value: 1 },
         sampleIndex: { value: 0 },
@@ -72,6 +78,7 @@ export class LightmapperMaterial extends ShaderMaterial {
         indirectLightEnabled: { value: options.indirectLightEnabled },
         ambientLightEnabled: { value: options.ambientLightEnabled },
         ambientDistance: { value: options.ambientDistance },
+        nDotLStrength: { value: options.nDotLStrength },
       },
 
       vertexShader: /* glsl */ `
@@ -97,6 +104,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform vec3 lightPositions[MAX_LIGHTS];
                 uniform float lightSizes[MAX_LIGHTS];
                 uniform float lightIntensities[MAX_LIGHTS];
+                uniform float lightDistances[MAX_LIGHTS];
                 uniform vec3 lightColors[MAX_LIGHTS];
                 uniform int numLights;
                 uniform int sampleIndex;
@@ -105,6 +113,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform bool indirectLightEnabled;
                 uniform bool ambientLightEnabled;
                 uniform float ambientDistance;
+                uniform float nDotLStrength;
                 uniform float opacity;
 
                 uniform BVH bvh;
@@ -219,6 +228,12 @@ export class LightmapperMaterial extends ShaderMaterial {
                         for ( int l = 0; l < MAX_LIGHTS; l++ ) {
                             if ( l >= numLights ) break;
                             vec3 lightContrib = vec3(0.0);
+                            float d = length(lightPositions[l] - rayOrigin);
+                            float attenuation = 1.0;
+                            if (lightDistances[l] > 0.0) {
+                                float ratio = clamp(d / lightDistances[l], 0.0, 1.0);
+                                attenuation = (1.0 - ratio) * (1.0 - ratio);
+                            }
                             for ( int i = 0; i < casts; i++ ) {
                                 vec3 newDirection = lightPositions[l] - (rayOrigin + randomSpherePoint(rand3() * 0.05) * lightSizes[l]);
 
@@ -226,10 +241,11 @@ export class LightmapperMaterial extends ShaderMaterial {
                                 bool hit = bvhIntersectFirstHit( bvh, rayOrigin, newDirection, faceIndices, faceNormal, barycoord, side, dist );
 
                                 if(!hit) {
-                                    lightContrib += vec3(1.0);
+                                    float NdotL = max(dot(rayDirection, newDirection), 0.0);
+                                    lightContrib += vec3(mix(1.0, NdotL, nDotLStrength));
                                 }
                             }
-                            totalDirectLight += (lightContrib / float(casts)) * lightColors[l] * lightIntensities[l];
+                            totalDirectLight += (lightContrib / float(casts)) * lightColors[l] * lightIntensities[l] * attenuation;
                         }
                     }
 
