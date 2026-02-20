@@ -73,7 +73,7 @@ export class LightBakerExample {
   pane: Pane
 
   options = {
-    model: 'level_blockout.glb',
+    model: 'dressing.glb',
     renderMode: 'beauty',
     lightMapSize: 1024,
     casts: 1,
@@ -212,7 +212,7 @@ export class LightBakerExample {
       this.scene.remove(this.currentModel)
     }
 
-    this.camera.position.set(0, 10, 10)
+    this.camera.position.set(3.5, 3, 4)
 
     this.currentModelMeshs = []
 
