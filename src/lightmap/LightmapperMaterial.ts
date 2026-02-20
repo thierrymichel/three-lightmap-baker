@@ -183,6 +183,7 @@ export class LightmapperMaterial extends ShaderMaterial {
 
                 void main() {
                     vec4 position = texture2D(positions, vUv);
+                    if(position.a == 0.0) discard;
                     vec4 normal = texture2D(normals, vUv);
 
                     rng_initialize( gl_FragCoord.xy, sampleIndex );
