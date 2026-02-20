@@ -1,3 +1,4 @@
+<!-- markdownlint-disable -->
 # 🍞 Three Lightmap Baker
 
 <h3 align="center">Basic example of lightmapping in ThreeJS</h3>
