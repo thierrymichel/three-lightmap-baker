@@ -1,10 +1,14 @@
-import { type Matrix4, ShaderMaterial, type Texture, type Vector3 } from 'three'
+import type { Matrix4, Texture } from 'three'
+import { Color, ShaderMaterial, Vector3 } from 'three'
 import {
   type MeshBVH,
   MeshBVHUniformStruct,
   shaderIntersectFunction,
   shaderStructs,
 } from 'three-mesh-bvh'
+import type { LightDef } from './Lightmapper'
+
+const MAX_LIGHTS = 2
 
 export type LightmapperMaterialOptions = {
   bvh: MeshBVH
@@ -15,8 +19,7 @@ export type LightmapperMaterialOptions = {
 
   casts: number
 
-  lightPosition: Vector3
-  lightSize: number
+  lights: LightDef[]
 
   opacity: number
   sampleIndex: number
@@ -32,6 +35,23 @@ export class LightmapperMaterial extends ShaderMaterial {
     const bvhUniformStruct = new MeshBVHUniformStruct()
     bvhUniformStruct.updateFrom(options.bvh)
 
+    const lightPositions = Array.from(
+      { length: MAX_LIGHTS },
+      (_, i) => options.lights[i]?.position ?? new Vector3(),
+    )
+    const lightSizes = Array.from(
+      { length: MAX_LIGHTS },
+      (_, i) => options.lights[i]?.size ?? 0,
+    )
+    const lightIntensities = Array.from(
+      { length: MAX_LIGHTS },
+      (_, i) => options.lights[i]?.intensity ?? 0,
+    )
+    const lightColors = Array.from(
+      { length: MAX_LIGHTS },
+      (_, i) => options.lights[i]?.color ?? new Color(0x000000),
+    )
+
     super({
       transparent: true,
 
@@ -41,8 +61,11 @@ export class LightmapperMaterial extends ShaderMaterial {
         normals: { value: options.normals },
         invModelMatrix: { value: options.invModelMatrix },
         casts: { value: options.casts },
-        lightPosition: { value: options.lightPosition },
-        lightSize: { value: options.lightSize },
+        lightPositions: { value: lightPositions },
+        lightSizes: { value: lightSizes },
+        lightIntensities: { value: lightIntensities },
+        lightColors: { value: lightColors },
+        numLights: { value: Math.min(options.lights.length, MAX_LIGHTS) },
         opacity: { value: 1 },
         sampleIndex: { value: 0 },
         directLightEnabled: { value: options.directLightEnabled },
@@ -70,8 +93,12 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform sampler2D normals;
                 uniform int casts;
 
-                uniform vec3 lightPosition;
-                uniform float lightSize;
+                #define MAX_LIGHTS 2
+                uniform vec3 lightPositions[MAX_LIGHTS];
+                uniform float lightSizes[MAX_LIGHTS];
+                uniform float lightIntensities[MAX_LIGHTS];
+                uniform vec3 lightColors[MAX_LIGHTS];
+                uniform int numLights;
                 uniform int sampleIndex;
 
                 uniform bool directLightEnabled;
@@ -189,21 +216,24 @@ export class LightmapperMaterial extends ShaderMaterial {
                     }
 
                     if(directLightEnabled) {
-                        for ( int i = 0; i < casts; i++ ) {
-                            vec3 newDirection = lightPosition - (rayOrigin + randomSpherePoint(rand3() * 0.05) * lightSize);
+                        for ( int l = 0; l < MAX_LIGHTS; l++ ) {
+                            if ( l >= numLights ) break;
+                            vec3 lightContrib = vec3(0.0);
+                            for ( int i = 0; i < casts; i++ ) {
+                                vec3 newDirection = lightPositions[l] - (rayOrigin + randomSpherePoint(rand3() * 0.05) * lightSizes[l]);
 
-                            newDirection = normalize(newDirection);
-                            bool hit = bvhIntersectFirstHit( bvh, rayOrigin, newDirection, faceIndices, faceNormal, barycoord, side, dist );
+                                newDirection = normalize(newDirection);
+                                bool hit = bvhIntersectFirstHit( bvh, rayOrigin, newDirection, faceIndices, faceNormal, barycoord, side, dist );
 
-                            if(!hit) {
-                                totalDirectLight.r += 1.0;
-                                totalDirectLight.g += 1.0;
-                                totalDirectLight.b += 1.0;
+                                if(!hit) {
+                                    lightContrib += vec3(1.0);
+                                }
                             }
+                            totalDirectLight += (lightContrib / float(casts)) * lightColors[l] * lightIntensities[l];
                         }
                     }
 
-                    vec4 adverageDirectLight = vec4(totalDirectLight / float(casts), 1.0);
+                    vec4 adverageDirectLight = vec4(totalDirectLight / float(max(numLights, 1)), 1.0);
                     vec4 adverageAO = vec4(totalAO / float(casts), 1.0);
                     vec4 adverageIndirectLight = vec4(totalIndirectLight / float(casts), 1.0);
 

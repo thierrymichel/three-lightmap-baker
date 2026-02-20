@@ -52,7 +52,8 @@ export class LightBakerExample {
   controls: OrbitControls
   directionalLight: DirectionalLight
 
-  lightDummy: Object3D
+  lightDummy1: Object3D
+  lightDummy2: Object3D
   lightTranformController: TransformControls
 
   currentModel: Object3D
@@ -111,8 +112,11 @@ export class LightBakerExample {
 
     this.directionalLight = new DirectionalLight(0xffffff, 1)
 
-    this.lightDummy = new Object3D()
-    this.lightDummy.position.set(15.0, 30.0, 8.0)
+    this.lightDummy1 = new Object3D()
+    this.lightDummy1.position.set(25.0, 30.0, 2.0)
+
+    this.lightDummy2 = new Object3D()
+    this.lightDummy2.position.set(-5.0, 30.0, -10.0)
 
     this.lightTranformController = new TransformControls(
       this.camera,
@@ -124,8 +128,10 @@ export class LightBakerExample {
         this.controls.enabled = !event.value
       },
     )
-    this.lightTranformController.attach(this.lightDummy)
-    this.scene.add(this.lightDummy)
+    this.lightTranformController.attach(this.lightDummy1)
+    this.lightTranformController.attach(this.lightDummy2)
+    this.scene.add(this.lightDummy1)
+    this.scene.add(this.lightDummy2)
     this.scene.add(this.lightTranformController.getHelper())
 
     this.pane = new Pane()
@@ -260,8 +266,20 @@ export class LightBakerExample {
       casts: this.options.casts,
       filterMode:
         this.options.filterMode === 'linear' ? LinearFilter : NearestFilter,
-      lightPosition: this.lightDummy.position,
-      lightSize: 3,
+      lights: [
+        {
+          position: this.lightDummy1.position,
+          size: 3,
+          intensity: 0.5,
+          color: new Color(0xffffff),
+        },
+        {
+          position: this.lightDummy2.position,
+          size: 3,
+          intensity: 1.0,
+          color: new Color(0xffffff),
+        },
+      ],
       ambientDistance: this.options.ambientDistance,
       ambientLightEnabled: this.options.ambientLightEnabled,
       directLightEnabled: this.options.directLightEnabled,

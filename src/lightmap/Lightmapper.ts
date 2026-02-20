@@ -1,4 +1,10 @@
-import type { Texture, TextureFilter, Vector3, WebGLRenderer } from 'three'
+import type {
+  Color,
+  Texture,
+  TextureFilter,
+  Vector3,
+  WebGLRenderer,
+} from 'three'
 import {
   FloatType,
   LinearFilter,
@@ -12,11 +18,17 @@ import {
 import type { MeshBVH } from 'three-mesh-bvh'
 import { LightmapperMaterial } from './LightmapperMaterial'
 
+export type LightDef = {
+  position: Vector3
+  size: number
+  intensity: number
+  color: Color
+}
+
 export type RaycastOptions = {
   resolution: number
   casts: number
-  lightPosition: Vector3
-  lightSize: number
+  lights: LightDef[]
   filterMode: TextureFilter
 
   directLightEnabled: boolean
@@ -43,8 +55,7 @@ export const generateLightmapper = (
     positions,
     normals,
     casts: options.casts,
-    lightPosition: options.lightPosition,
-    lightSize: options.lightSize,
+    lights: options.lights,
     opacity: 1,
     sampleIndex: 0,
     directLightEnabled: options.directLightEnabled,
