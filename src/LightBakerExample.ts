@@ -85,6 +85,10 @@ export class LightBakerExample {
     lightIntensity: 1.0,
     lightRadius: 60,
     nDotLStrength: 0.5,
+    denoise: false,
+    denoiseKernelRadius: 2,
+    denoiseSpatialSigma: 2.0,
+    denoiseRangeSigma: 0.1,
     debugTextures: false,
     pause: false,
   }
@@ -183,6 +187,35 @@ export class LightBakerExample {
       min: 0,
       step: 0.05,
     })
+
+    const denoiseFolder = this.pane.addFolder({ title: 'Denoise' })
+    denoiseFolder
+      .addBinding(this.options, 'denoise')
+      .on('change', () => this.applyDenoise())
+    denoiseFolder
+      .addBinding(this.options, 'denoiseKernelRadius', {
+        label: 'kernel',
+        max: 4,
+        min: 1,
+        step: 1,
+      })
+      .on('change', () => this.applyDenoise())
+    denoiseFolder
+      .addBinding(this.options, 'denoiseSpatialSigma', {
+        label: 'spatial σ',
+        max: 5.0,
+        min: 0.5,
+        step: 0.1,
+      })
+      .on('change', () => this.applyDenoise())
+    denoiseFolder
+      .addBinding(this.options, 'denoiseRangeSigma', {
+        label: 'range σ',
+        max: 0.5,
+        min: 0.01,
+        step: 0.01,
+      })
+      .on('change', () => this.applyDenoise())
 
     this.pane
       .addBinding(this.options, 'debugTextures')
@@ -318,10 +351,11 @@ export class LightBakerExample {
 
     this.onRenderModeChange()
 
-    // Auto-pause
+    // Auto-pause + denoise
     setTimeout(() => {
       this.options.pause = true
       this.pane.refresh()
+      this.applyDenoise()
     }, 2500)
   }
 
@@ -340,6 +374,19 @@ export class LightBakerExample {
     this.scene.add(debugTexture)
 
     return debugTexture
+  }
+
+  applyDenoise() {
+    if (!this.lightmapper) return
+
+    this.lightmapper.denoise({
+      enabled: this.options.denoise,
+      kernelRadius: this.options.denoiseKernelRadius,
+      spatialSigma: this.options.denoiseSpatialSigma,
+      rangeSigma: this.options.denoiseRangeSigma,
+    })
+    this.lightmapTexture = this.lightmapper.renderTexture
+    this.onRenderModeChange()
   }
 
   onDebugTexturesChange() {

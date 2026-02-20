@@ -54,4 +54,29 @@ Remplacement du blending alpha WebGL par une accumulation explicite avec deux re
 
 ### Contrôle de l'arrêt
 
-Actuellement, l'accumulation s'arrête via un `setTimeout` de 2 secondes qui force `pause = true`. Le nombre de samples dépend donc du framerate (~120 à 60fps, ~240 à 120fps). Il n'y a pas encore de critère de convergence ni d'arrêt sur un nombre de samples cible.
+Actuellement, l'accumulation s'arrête via un `setTimeout` de 2.5 secondes qui force `pause = true`. Le nombre de samples dépend donc du framerate (~120 à 60fps, ~240 à 120fps). Il n'y a pas encore de critère de convergence ni d'arrêt sur un nombre de samples cible.
+
+## Denoiser — Filtre bilatéral en post-process
+
+Un filtre bilatéral appliqué en fullscreen quad sur la lightmap accumulée. Le filtre bilatéral est **edge-preserving** par construction : il pondère chaque voisin par la distance spatiale ET la différence d'intensité. Résultat : les ombres franches (direct light) restent nettes tandis que le bruit Monte Carlo (indirect/AO) est lissé.
+
+### Architecture
+
+- `LightmapDenoiser.ts` — fonction `denoiseLightmap()` qui rend un pass unique (source → destination)
+- Un 3e render target (`rtDenoised`) dans le `Lightmapper`, utilisé uniquement quand le denoiser est actif
+- Le getter `renderTexture` retourne automatiquement la version denoisée ou brute selon l'état
+- Pendant l'accumulation active (`render()`), `isDenoised` repasse à `false` — le denoiser ne tourne pas à chaque frame
+- Le denoiser est déclenché une fois quand le bake se met en pause, ou manuellement depuis l'UI
+
+### Paramètres
+
+| Slider       | Range      | Défaut | Effet                                                      |
+| ------------ | ---------- | ------ | ---------------------------------------------------------- |
+| `denoise`    | on/off     | off    | Active/désactive le denoiser                               |
+| `kernel`     | 1 → 4      | 2      | Rayon du noyau en texels (kernel 2 = fenêtre 5×5)          |
+| `spatial σ`  | 0.5 → 5.0  | 2.0    | Écart-type spatial — plus grand = plus de blur spatial     |
+| `range σ`    | 0.01 → 0.5 | 0.1    | Écart-type d'intensité — plus petit = plus edge-preserving |
+
+### Pourquoi ça marche sans séparer direct/indirect
+
+Le filtre bilatéral préserve naturellement les discontinuités d'intensité (bords d'ombres dures) grâce à sa composante range. Avec un `range σ` bas (0.05–0.15), les transitions franches du direct light sont préservées tandis que le bruit haute fréquence de l'indirect/AO est moyenné. Pas besoin de MRT séparés.

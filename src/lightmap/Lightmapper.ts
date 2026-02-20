@@ -16,6 +16,11 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import type { MeshBVH } from 'three-mesh-bvh'
+import {
+  type DenoiserOptions,
+  defaultDenoiserOptions,
+  denoiseLightmap,
+} from './LightmapDenoiser'
 import { LightmapperMaterial } from './LightmapperMaterial'
 
 export type LightDef = {
@@ -42,6 +47,8 @@ export type RaycastOptions = {
 export type Lightmapper = {
   renderTexture: WebGLRenderTarget
   render: () => number
+  denoise: (options?: Partial<DenoiserOptions>) => void
+  denoiserOptions: DenoiserOptions
 }
 
 export const generateLightmapper = (
@@ -82,8 +89,13 @@ export const generateLightmapper = (
     options.resolution,
     rtOptions,
   )
+  const rtDenoised = new WebGLRenderTarget(
+    options.resolution,
+    options.resolution,
+    rtOptions,
+  )
 
-  for (const rt of [rtA, rtB]) {
+  for (const rt of [rtA, rtB, rtDenoised]) {
     renderer.setRenderTarget(rt)
     renderer.setClearColor(0x000000, 0)
     renderer.clear()
@@ -95,6 +107,9 @@ export const generateLightmapper = (
   let totalSamples = 0
   let readTarget = rtA
   let writeTarget = rtB
+  let isDenoised = false
+
+  const denoiserOptions: DenoiserOptions = { ...defaultDenoiserOptions }
 
   const render = () => {
     raycastMaterial.uniforms.sampleIndex.value = totalSamples
@@ -109,16 +124,27 @@ export const generateLightmapper = (
     writeTarget = tmp
 
     totalSamples++
+    isDenoised = false
 
     return totalSamples
+  }
+
+  const denoise = (overrides?: Partial<DenoiserOptions>) => {
+    const opts = { ...denoiserOptions, ...overrides }
+    if (!opts.enabled) return
+
+    denoiseLightmap(renderer, readTarget, rtDenoised, opts)
+    isDenoised = true
   }
 
   renderer.setRenderTarget(null)
 
   return {
     get renderTexture() {
-      return readTarget
+      return isDenoised ? rtDenoised : readTarget
     },
     render,
+    denoise,
+    denoiserOptions,
   }
 }
