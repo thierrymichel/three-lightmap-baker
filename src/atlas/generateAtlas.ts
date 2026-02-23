@@ -11,15 +11,19 @@ enum ProgressCategory {
   BuildOutputMeshes,
 }
 
-export const loadXAtlasThree = async () => {
+const DEFAULT_WASM_URL =
+  'https://cdn.jsdelivr.net/npm/xatlasjs@0.2.0/dist/xatlas.wasm'
+const DEFAULT_JS_URL =
+  'https://cdn.jsdelivr.net/npm/xatlasjs@0.2.0/dist/xatlas.js'
+
+export const loadXAtlasThree = async (
+  wasmUrl = DEFAULT_WASM_URL,
+  jsUrl = DEFAULT_JS_URL,
+) => {
   const onProgress = (mode: number, progress: number) => {
     console.log(`🗺️ XAtlas ${ProgressCategory[mode]} ${progress}%`)
   }
-  await unwrapper.loadLibrary(
-    onProgress,
-    'https://cdn.jsdelivr.net/npm/xatlasjs@0.2.0/dist/xatlas.wasm',
-    'https://cdn.jsdelivr.net/npm/xatlasjs@0.2.0/dist/xatlas.js',
-  )
+  await unwrapper.loadLibrary(onProgress, wasmUrl, jsUrl)
 
   console.log('Loaded')
 }
