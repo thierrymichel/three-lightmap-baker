@@ -6,6 +6,7 @@ import type {
   WebGLRenderer,
 } from 'three'
 import {
+  type BufferAttribute,
   FloatType,
   LinearFilter,
   LinearMipMapLinearFilter,
@@ -15,7 +16,7 @@ import {
   PlaneGeometry,
   WebGLRenderTarget,
 } from 'three'
-import type { MeshBVH } from 'three-mesh-bvh'
+import { FloatVertexAttributeTexture, type MeshBVH } from 'three-mesh-bvh'
 import {
   type DenoiserOptions,
   defaultDenoiserOptions,
@@ -42,6 +43,7 @@ export type RaycastOptions = {
   ambientLightEnabled: boolean
   ambientDistance: number
   nDotLStrength: number
+  bounceEnabled: boolean
 }
 
 export type Lightmapper = {
@@ -58,6 +60,9 @@ export const generateLightmapper = (
   bvh: MeshBVH,
   options: RaycastOptions,
 ): Lightmapper => {
+  const uv2Texture = new FloatVertexAttributeTexture()
+  uv2Texture.updateFrom(bvh.geometry.attributes.uv2 as BufferAttribute)
+
   const raycastMaterial = new LightmapperMaterial({
     bvh,
     invModelMatrix: new Matrix4().identity(),
@@ -71,6 +76,8 @@ export const generateLightmapper = (
     ambientLightEnabled: options.ambientLightEnabled,
     ambientDistance: options.ambientDistance,
     nDotLStrength: options.nDotLStrength,
+    bounceEnabled: options.bounceEnabled,
+    uv2Attr: uv2Texture,
   })
 
   const rtOptions = {

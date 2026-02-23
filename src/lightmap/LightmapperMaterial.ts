@@ -1,4 +1,4 @@
-import type { Matrix4, Texture } from 'three'
+import type { DataTexture, Matrix4, Texture } from 'three'
 import { Color, ShaderMaterial, Vector3 } from 'three'
 import {
   type MeshBVH,
@@ -28,6 +28,8 @@ export type LightmapperMaterialOptions = {
   ambientLightEnabled: boolean
   ambientDistance: number
   nDotLStrength: number
+  bounceEnabled: boolean
+  uv2Attr: DataTexture
 }
 
 export class LightmapperMaterial extends ShaderMaterial {
@@ -76,6 +78,8 @@ export class LightmapperMaterial extends ShaderMaterial {
         ambientLightEnabled: { value: options.ambientLightEnabled },
         ambientDistance: { value: options.ambientDistance },
         nDotLStrength: { value: options.nDotLStrength },
+        bounceEnabled: { value: options.bounceEnabled },
+        uv2Attr: { value: options.uv2Attr },
       },
 
       vertexShader: /* glsl */ `
@@ -111,6 +115,8 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform bool ambientLightEnabled;
                 uniform float ambientDistance;
                 uniform float nDotLStrength;
+                uniform bool bounceEnabled;
+                uniform sampler2D uv2Attr;
                 uniform sampler2D previousFrame;
 
                 uniform BVH bvh;
@@ -208,9 +214,10 @@ export class LightmapperMaterial extends ShaderMaterial {
                                 bool hit = bvhIntersectFirstHit( bvh, rayOrigin, newDirection, faceIndices, faceNormal, barycoord, side, dist );
 
                                 if(!hit) {
-                                    totalIndirectLight.r += 1.0;
-                                    totalIndirectLight.g += 1.0;
-                                    totalIndirectLight.b += 1.0;
+                                    totalIndirectLight += vec3(1.0);
+                                } else if(bounceEnabled && sampleIndex > 0) {
+                                    vec2 hitUV = textureSampleBarycoord(uv2Attr, barycoord, faceIndices.xyz).xy;
+                                    totalIndirectLight += texture2D(previousFrame, hitUV).rgb;
                                 }
 
                                 if(!hit || dist > ambientDistance) {

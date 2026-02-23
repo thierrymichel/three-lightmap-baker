@@ -81,6 +81,45 @@ Un filtre bilatéral appliqué en fullscreen quad sur la lightmap accumulée. Le
 
 Le filtre bilatéral préserve naturellement les discontinuités d'intensité (bords d'ombres dures) grâce à sa composante range. Avec un `range σ` bas (0.05–0.15), les transitions franches du direct light sont préservées tandis que le bruit haute fréquence de l'indirect/AO est moyenné. Pas besoin de MRT séparés.
 
+## Bounce lighting — indirect multi-rebond progressif
+
+Ajout d'un rebond de lumière indirecte via l'accumulation progressive. Quand un ray hémisphère touche une surface, au lieu de contribuer 0, on échantillonne la lightmap accumulée au point d'impact pour récupérer la lumière déjà calculée à cet endroit.
+
+### Principe
+
+1. À chaque sample, le shader lance des rays hémisphère depuis chaque texel
+2. Si le ray ne touche rien → contribution sky `vec3(1.0)` (inchangé)
+3. Si le ray touche une surface et `bounceEnabled` :
+   - Interpolation des coordonnées UV2 au point d'impact via les barycentriques (`textureSampleBarycoord`)
+   - Échantillonnage de `previousFrame` (la lightmap accumulée) à ces UV2
+   - La couleur récupérée est ajoutée comme contribution indirecte
+
+### Convergence naturelle multi-bounce
+
+Pas besoin de paramètre "nombre de bounces" :
+
+- **Sample 0** : `previousFrame` est noir (render targets vidés) → aucun bounce, seulement direct + sky
+- **Samples suivants** : `previousFrame` contient la running average → les surfaces touchées retournent de la lumière
+- **Après N samples** : convergence itérative — chaque nouveau sample capte la lumière rebondie des passes précédentes, équivalent à un solver de radiosité progressive avec bounces infinis
+
+### Implémentation technique
+
+- **Texture UV2** : `FloatVertexAttributeTexture` (de three-mesh-bvh) créée à partir de `bvh.geometry.attributes.uv2` — les vertex indices retournés par `bvhIntersectFirstHit` (`faceIndices.xyz`) indexent directement cette texture
+- **`textureSampleBarycoord()`** : helper GLSL déjà fourni par three-mesh-bvh (`common_functions`), fait l'interpolation barycentrique pour nous
+- **Double usage de `previousFrame`** : sert à la fois pour l'accumulation ping-pong (running average) et comme source de bounce — pas de render target supplémentaire
+
+### Paramètre
+
+| Toggle   | Défaut | Effet                                                              |
+| -------- | ------ | ------------------------------------------------------------------ |
+| `bounce` | on     | Active/désactive le rebond indirect (surfaces éclairées rebondissent la lumière) |
+
+### Limites actuelles
+
+- **Sans albedo** : toutes les surfaces sont traitées comme blanches (100% réflectance), la scène peut être trop lumineuse en intérieur. Sera résolu avec le support des textures albedo.
+- **Pas de color bleeding** : sans albedo, la lumière rebondie est toujours blanche — pas de teinte colorée.
+- **Convergence plus lente** : les bounces dépendant des samples précédents, il faut ~2-3× plus de samples pour le même niveau de bruit. Le denoiser bilatéral compense en partie.
+
 ## NPM scripts
 
 ```sh

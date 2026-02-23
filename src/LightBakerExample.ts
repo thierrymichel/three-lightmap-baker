@@ -85,6 +85,7 @@ export class LightBakerExample {
     lightIntensity: 3.0,
     lightRadius: 60,
     nDotLStrength: 0.5,
+    bounce: true,
     denoise: false,
     denoiseKernelRadius: 2,
     denoiseSpatialSigma: 2.0,
@@ -187,6 +188,7 @@ export class LightBakerExample {
       min: 0,
       step: 0.05,
     })
+    this.pane.addBinding(this.options, 'bounce')
 
     const denoiseFolder = this.pane.addFolder({ title: 'Denoise' })
     denoiseFolder
@@ -343,6 +345,7 @@ export class LightBakerExample {
       ambientLightEnabled: this.options.ambientLightEnabled,
       directLightEnabled: this.options.directLightEnabled,
       indirectLightEnabled: this.options.indirectLightEnabled,
+      bounceEnabled: this.options.bounce,
     }
 
     this.lightmapper = await generateLightmapper(
@@ -361,7 +364,8 @@ export class LightBakerExample {
       this.options.pause = true
       this.pane.refresh()
       this.applyDenoise()
-    }, 2500)
+      console.log('✅')
+    }, 10000)
   }
 
   createDebugTexture(texture: Texture, position: Vector3) {

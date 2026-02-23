@@ -96,6 +96,7 @@ async function main() {
     directLightEnabled: defaultBakeOptions.directLightEnabled,
     indirectLightEnabled: defaultBakeOptions.indirectLightEnabled,
     ambientLightEnabled: defaultBakeOptions.ambientLightEnabled,
+    bounceEnabled: defaultBakeOptions.bounceEnabled,
     denoise: defaultBakeOptions.denoise,
     onProgress: (sample, total) => {
       if (sample % 10 === 0 || sample === total) {

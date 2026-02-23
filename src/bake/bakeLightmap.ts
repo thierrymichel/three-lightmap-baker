@@ -21,6 +21,7 @@ export type BakeOptions = {
   directLightEnabled: boolean
   indirectLightEnabled: boolean
   ambientLightEnabled: boolean
+  bounceEnabled: boolean
   denoise?: Partial<DenoiserOptions>
   onProgress?: (sample: number, total: number) => void
 }
@@ -51,6 +52,7 @@ export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
   directLightEnabled: true,
   indirectLightEnabled: true,
   ambientLightEnabled: true,
+  bounceEnabled: true,
   denoise: { enabled: true },
 }
 
@@ -99,6 +101,7 @@ export async function bakeLightmap(
       ambientLightEnabled: options.ambientLightEnabled,
       directLightEnabled: options.directLightEnabled,
       indirectLightEnabled: options.indirectLightEnabled,
+      bounceEnabled: options.bounceEnabled,
     },
   )
 
