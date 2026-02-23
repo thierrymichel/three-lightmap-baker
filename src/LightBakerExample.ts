@@ -264,6 +264,8 @@ export class LightBakerExample {
     }
 
     this.camera.position.set(3.5, 3, 4)
+    this.controls.target.set(1, 1, 1) // par exemple, centrer un peu plus haut
+    this.controls.update()
 
     this.currentModelMeshs = []
 
@@ -271,10 +273,13 @@ export class LightBakerExample {
 
     const gltf = await LoadGLTF(this.options.model)
 
-    gltf.scene.traverse((child: any) => {
-      if (child.isMesh) {
-        child.material._originalMap = child.material.map
-        this.currentModelMeshs.push(child)
+    gltf.scene.traverse((child: Object3D) => {
+      const mesh = child as Mesh
+
+      if (mesh.isMesh) {
+        // biome-ignore lint/suspicious/noExplicitAny: material is enhanced
+        ;(mesh.material as any)._originalMap = (mesh.material as any).map
+        this.currentModelMeshs.push(mesh)
       }
     })
 
