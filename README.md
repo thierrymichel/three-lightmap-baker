@@ -8,21 +8,21 @@
 
 
 ## Todo
- - Progressive renderer
- - Convert to an API
- - NPM Package
- - Add denoiser options
- - High casts can cause the WebGL context to timeout
- - Import & Export models & lightmaps
- - Bounce lighting
- - Albedo & Emissive textures
- - Only denoise indirect light & AO
- - Denoise offline (using Optix)
- - Try import/use more GPU Pathtracer logic
- - Multiple lights, light types, light colour
- - Downscaling
- - Seperate AO map
- - Generate & export light probes
+ - [x] Progressive renderer <!-- ping-pong accumulation with running average -->
+ - [x] Convert to an API <!-- `generateLightmapper()` + `bakeLightmap()` -->
+ - [ ] NPM Package
+ - [x] Add denoiser options <!-- bilateral filter (kernel, spatial σ, range σ) -->
+ - [ ] High casts can cause the WebGL context to timeout
+ - [x] Import & Export models & lightmaps <!-- GLB import + headless bake via Playwright (`yarn bake` → PNG) -->
+ - [ ] Bounce lighting <!-- single-bounce indirect only, no recursive bounces -->
+ - [ ] Albedo & Emissive textures
+ - [ ] Only denoise indirect light & AO <!-- bilateral filter is applied to the full combined lightmap -->
+ - [ ] Denoise offline (using Optix)
+ - [ ] Try import/use more GPU Pathtracer logic <!-- uses BVH structs/shaders, not the full pathtracer -->
+ - [x] Multiple lights, light types, light colour <!-- up to 2 point lights with color, intensity, distance attenuation -->
+ - [ ] Downscaling
+ - [ ] Seperate AO map
+ - [ ] Generate & export light probes
 
 ## Examples
 
