@@ -44,6 +44,7 @@ export type RaycastOptions = {
   ambientDistance: number
   nDotLStrength: number
   bounceEnabled: boolean
+  albedoEnabled: boolean
 }
 
 export type Lightmapper = {
@@ -57,6 +58,7 @@ export const generateLightmapper = (
   renderer: WebGLRenderer,
   positions: Texture,
   normals: Texture,
+  albedo: Texture,
   bvh: MeshBVH,
   options: RaycastOptions,
 ): Lightmapper => {
@@ -77,7 +79,9 @@ export const generateLightmapper = (
     ambientDistance: options.ambientDistance,
     nDotLStrength: options.nDotLStrength,
     bounceEnabled: options.bounceEnabled,
+    albedoEnabled: options.albedoEnabled,
     uv2Attr: uv2Texture,
+    albedoAtlas: albedo,
   })
 
   const rtOptions = {

@@ -1,5 +1,5 @@
-import type { TextureFilter, WebGLRenderer } from 'three'
-import { Color, LinearFilter, type Mesh, Vector3 } from 'three'
+import type { TextureFilter, WebGLRenderer, WebGLRenderTarget } from 'three'
+import { Color, LinearFilter, type Mesh, type Object3D, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { generateAtlas } from '../atlas/generateAtlas'
 import { renderAtlas } from '../atlas/renderAtlas'
@@ -22,6 +22,7 @@ export type BakeOptions = {
   indirectLightEnabled: boolean
   ambientLightEnabled: boolean
   bounceEnabled: boolean
+  albedoEnabled: boolean
   denoise?: Partial<DenoiserOptions>
   onProgress?: (sample: number, total: number) => void
 }
@@ -53,13 +54,21 @@ export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
   indirectLightEnabled: true,
   ambientLightEnabled: true,
   bounceEnabled: true,
+  albedoEnabled: true,
   denoise: { enabled: true },
+}
+
+export type BakeResult = {
+  pixels: Uint8Array
+  gltfScene: Object3D
+  meshes: Mesh[]
+  renderTarget: WebGLRenderTarget
 }
 
 export async function bakeLightmap(
   renderer: WebGLRenderer,
   options: BakeOptions,
-): Promise<Uint8Array> {
+): Promise<BakeResult> {
   const { resolution, samples } = options
 
   const gltf = await LoadGLTF(options.modelUrl)
@@ -90,6 +99,7 @@ export async function bakeLightmap(
     renderer,
     atlas.positionTexture,
     atlas.normalTexture,
+    atlas.albedoTexture,
     bvh,
     {
       resolution,
@@ -102,6 +112,7 @@ export async function bakeLightmap(
       directLightEnabled: options.directLightEnabled,
       indirectLightEnabled: options.indirectLightEnabled,
       bounceEnabled: options.bounceEnabled,
+      albedoEnabled: options.albedoEnabled,
     },
   )
 
@@ -126,7 +137,12 @@ export async function bakeLightmap(
     output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
   }
 
-  return output
+  return {
+    pixels: output,
+    gltfScene: gltf.scene,
+    meshes,
+    renderTarget: rt,
+  }
 }
 
 export function pixelsToDataURL(

@@ -86,6 +86,7 @@ export class LightBakerExample {
     lightRadius: 60,
     nDotLStrength: 0.5,
     bounce: true,
+    albedo: true,
     denoise: false,
     denoiseKernelRadius: 2,
     denoiseSpatialSigma: 2.0,
@@ -189,6 +190,7 @@ export class LightBakerExample {
       step: 0.05,
     })
     this.pane.addBinding(this.options, 'bounce')
+    this.pane.addBinding(this.options, 'albedo')
 
     const denoiseFolder = this.pane.addFolder({ title: 'Denoise' })
     denoiseFolder
@@ -281,6 +283,14 @@ export class LightBakerExample {
       if (mesh.isMesh) {
         // biome-ignore lint/suspicious/noExplicitAny: material is enhanced
         ;(mesh.material as any)._originalMap = (mesh.material as any).map
+        // if (mesh.name === 'wall_left') {
+        //   // biome-ignore lint/suspicious/noExplicitAny: color debug
+        //   ;(mesh.material as any).color = new Color(0xcc3333)
+        // }
+        // if (mesh.name === 'wall_right') {
+        //   // biome-ignore lint/suspicious/noExplicitAny: color debug
+        //   ;(mesh.material as any).color = new Color(0x3333cc)
+        // }
         this.currentModelMeshs.push(mesh)
       }
     })
@@ -346,12 +356,14 @@ export class LightBakerExample {
       directLightEnabled: this.options.directLightEnabled,
       indirectLightEnabled: this.options.indirectLightEnabled,
       bounceEnabled: this.options.bounce,
+      albedoEnabled: this.options.albedo,
     }
 
     this.lightmapper = await generateLightmapper(
       this.renderer,
       atlas.positionTexture,
       atlas.normalTexture,
+      atlas.albedoTexture,
       bvh,
       lightmapperOptions,
     )

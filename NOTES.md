@@ -110,15 +110,35 @@ Pas besoin de paramètre "nombre de bounces" :
 
 ### Paramètre
 
-| Toggle   | Défaut | Effet                                                              |
-| -------- | ------ | ------------------------------------------------------------------ |
+| Toggle   | Défaut | Effet                                                                            |
+| -------- | ------ | -------------------------------------------------------------------------------- |
 | `bounce` | on     | Active/désactive le rebond indirect (surfaces éclairées rebondissent la lumière) |
 
 ### Limites actuelles
 
-- **Sans albedo** : toutes les surfaces sont traitées comme blanches (100% réflectance), la scène peut être trop lumineuse en intérieur. Sera résolu avec le support des textures albedo.
-- **Pas de color bleeding** : sans albedo, la lumière rebondie est toujours blanche — pas de teinte colorée.
 - **Convergence plus lente** : les bounces dépendant des samples précédents, il faut ~2-3× plus de samples pour le même niveau de bruit. Le denoiser bilatéral compense en partie.
+
+## Albedo atlas — color bleeding et absorption d'énergie
+
+La texture diffuse (`map`) de chaque mesh est rendue dans l'espace UV2 pour créer un **atlas albedo**, au même titre que les textures de position et de normales. Les bounces multiplient la lumière rebondie par l'albedo de la surface impactée.
+
+### Effet
+
+- **Color bleeding** : un mur rouge teinte les surfaces voisines en rouge via la lumière rebondie
+- **Absorption d'énergie** : les surfaces sombres absorbent plus de lumière à chaque rebond, évitant la sur-luminosité en intérieur
+- **Cohérence** : la lightmap elle-même n'est pas modulée par l'albedo — celui-ci est appliqué au runtime via le matériau (`lightMap × map`). Seuls les bounces intègrent l'albedo au point d'impact.
+
+### Implémentation
+
+- **`renderAtlas.ts`** : nouvelle fonction `renderAlbedoAtlas()` qui crée un `ShaderMaterial` par mesh (chacun avec sa propre texture `map`), positionne les vertices en UV2, et rend dans un render target commun avec dilation
+- Les meshes sans `map` utilisent un fallback blanc (1×1 `DataTexture`)
+- L'offset de dilation est partagé via une référence `Vector2` commune à tous les matériaux
+- **`LightmapperMaterial.ts`** : uniform `albedoAtlas` (sampler2D), échantillonné au point d'impact du bounce :
+
+  ```glsl
+  vec3 hitAlbedo = texture2D(albedoAtlas, hitUV).rgb;
+  totalIndirectLight += texture2D(previousFrame, hitUV).rgb * hitAlbedo;
+  ```
 
 ## NPM scripts
 

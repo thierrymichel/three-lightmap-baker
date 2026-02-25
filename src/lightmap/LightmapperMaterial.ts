@@ -29,7 +29,9 @@ export type LightmapperMaterialOptions = {
   ambientDistance: number
   nDotLStrength: number
   bounceEnabled: boolean
+  albedoEnabled: boolean
   uv2Attr: DataTexture
+  albedoAtlas: Texture
 }
 
 export class LightmapperMaterial extends ShaderMaterial {
@@ -79,7 +81,9 @@ export class LightmapperMaterial extends ShaderMaterial {
         ambientDistance: { value: options.ambientDistance },
         nDotLStrength: { value: options.nDotLStrength },
         bounceEnabled: { value: options.bounceEnabled },
+        albedoEnabled: { value: options.albedoEnabled },
         uv2Attr: { value: options.uv2Attr },
+        albedoAtlas: { value: options.albedoAtlas },
       },
 
       vertexShader: /* glsl */ `
@@ -116,7 +120,9 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform float ambientDistance;
                 uniform float nDotLStrength;
                 uniform bool bounceEnabled;
+                uniform bool albedoEnabled;
                 uniform sampler2D uv2Attr;
+                uniform sampler2D albedoAtlas;
                 uniform sampler2D previousFrame;
 
                 uniform BVH bvh;
@@ -217,7 +223,8 @@ export class LightmapperMaterial extends ShaderMaterial {
                                     totalIndirectLight += vec3(1.0);
                                 } else if(bounceEnabled && sampleIndex > 0) {
                                     vec2 hitUV = textureSampleBarycoord(uv2Attr, barycoord, faceIndices.xyz).xy;
-                                    totalIndirectLight += texture2D(previousFrame, hitUV).rgb;
+                                    vec3 hitAlbedo = albedoEnabled ? texture2D(albedoAtlas, hitUV).rgb : vec3(1.0);
+                                    totalIndirectLight += texture2D(previousFrame, hitUV).rgb * hitAlbedo;
                                 }
 
                                 if(!hit || dist > ambientDistance) {

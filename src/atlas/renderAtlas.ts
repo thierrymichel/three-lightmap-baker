@@ -1,12 +1,15 @@
-import type { Mesh, Texture, WebGLRenderer } from 'three'
+import type { Mesh, MeshStandardMaterial, Texture, WebGLRenderer } from 'three'
 import {
+  DataTexture,
   DoubleSide,
   FloatType,
   NearestFilter,
   Object3D,
   OrthographicCamera,
+  RGBAFormat,
   ShaderMaterial,
   Uniform,
+  UnsignedByteType,
   Vector2,
   WebGLRenderTarget,
 } from 'three'
@@ -71,6 +74,35 @@ const normalMaterial = new ShaderMaterial({
     offset: new Uniform(new Vector2(0, 0)),
   },
 })
+
+const albedoVertexShader = `
+    attribute vec2 uv2;
+    uniform vec2 offset;
+    varying vec2 vOriginalUv;
+
+    void main() {
+        vOriginalUv = uv;
+        gl_Position = vec4((uv2 + offset) * 2.0 - 1.0, 0.0, 1.0);
+    }
+`
+
+const albedoFragmentShader = `
+    uniform sampler2D map;
+    varying vec2 vOriginalUv;
+
+    void main() {
+        gl_FragColor = texture2D(map, vOriginalUv);
+    }
+`
+
+const whiteTexture = new DataTexture(
+  new Uint8Array([255, 255, 255, 255]),
+  1,
+  1,
+  RGBAFormat,
+  UnsignedByteType,
+)
+whiteTexture.needsUpdate = true
 
 const offsets = [
   { x: -2, y: -2 },
@@ -161,11 +193,72 @@ export const renderAtlas = (
     return target.texture
   }
 
+  const renderAlbedoAtlas = (): Texture => {
+    const target = new WebGLRenderTarget(resolution, resolution, {
+      type: FloatType,
+      magFilter: NearestFilter,
+      minFilter: NearestFilter,
+    })
+    const orthographicCamera = new OrthographicCamera(
+      -100,
+      100,
+      -100,
+      100,
+      -100,
+      200,
+    )
+    orthographicCamera.updateMatrix()
+
+    const sharedOffset = new Vector2(0, 0)
+    const albedoMeshes = new Object3D()
+    albedoMeshes.matrixWorldAutoUpdate = false
+
+    for (const mesh of meshs) {
+      const albedoMesh = mesh.clone()
+      const originalMap =
+        (mesh.material as MeshStandardMaterial).map ?? whiteTexture
+      albedoMesh.material = new ShaderMaterial({
+        vertexShader: albedoVertexShader,
+        fragmentShader: albedoFragmentShader,
+        side: DoubleSide,
+        fog: false,
+        uniforms: {
+          offset: { value: sharedOffset },
+          map: { value: originalMap },
+        },
+      })
+      albedoMeshes.add(albedoMesh)
+    }
+
+    renderer.autoClear = false
+    renderer.setRenderTarget(target)
+    renderer.setClearColor(0, 0)
+    renderer.clear()
+
+    if (dialate) {
+      for (const offset of offsets) {
+        sharedOffset.x = offset.x * (1 / resolution)
+        sharedOffset.y = offset.y * (1 / resolution)
+        renderer.render(albedoMeshes, orthographicCamera)
+      }
+    }
+
+    sharedOffset.x = 0
+    sharedOffset.y = 0
+    renderer.render(albedoMeshes, orthographicCamera)
+
+    renderer.setRenderTarget(null)
+
+    return target.texture
+  }
+
   const positionTexture = renderWithShader(worldPositionMaterial)
   const normalTexture = renderWithShader(normalMaterial)
+  const albedoTexture = renderAlbedoAtlas()
 
   return {
     positionTexture,
     normalTexture,
+    albedoTexture,
   }
 }

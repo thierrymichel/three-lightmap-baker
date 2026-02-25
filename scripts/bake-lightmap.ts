@@ -9,6 +9,7 @@ declare global {
     __bakeComplete?: boolean
     __bakeError?: string
     __bakeResult?: string
+    __bakeRender?: string
   }
 }
 
@@ -118,6 +119,17 @@ async function main() {
 
   await writeFile(outputPath, Buffer.from(base64, 'base64'))
   console.log(`Lightmap saved to ${outputPath}`)
+
+  const renderDataUrl = await page.evaluate(() => window.__bakeRender)
+  if (renderDataUrl) {
+    const renderBase64 = renderDataUrl.replace(/^data:image\/png;base64,/, '')
+    const ext = path.extname(outputPath)
+    const baseName = outputPath.slice(0, -ext.length)
+    const renderPath = `${baseName}-render${ext}`
+
+    await writeFile(renderPath, Buffer.from(renderBase64, 'base64'))
+    console.log(`Render saved to ${renderPath}`)
+  }
 
   await browser.close()
   await server.close()
