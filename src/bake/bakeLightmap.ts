@@ -130,9 +130,13 @@ export async function bakeLightmap(
 
   const rt = lightmapper.renderTexture
   const pixels = new Float32Array(resolution * resolution * 4)
+  console.log('[bake] Reading pixels')
+  console.time('[bake] Reading pixels')
   renderer.readRenderTargetPixels(rt, 0, 0, resolution, resolution, pixels)
+  console.timeEnd('[bake] Reading pixels')
 
   const output = new Uint8Array(resolution * resolution * 4)
+  console.log('[bake] Converting to Uint8Array')
   for (let i = 0; i < pixels.length; i++) {
     output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
   }

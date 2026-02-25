@@ -90,6 +90,7 @@ async function main() {
   const renderer = new WebGLRenderer({ preserveDrawingBuffer: true })
   renderer.setSize(config.resolution, config.resolution)
 
+  console.time('[bake-entry] bakeLightmap')
   const result = await bakeLightmap(renderer, {
     modelUrl: config.input,
     resolution: config.resolution,
@@ -111,6 +112,7 @@ async function main() {
       }
     },
   })
+  console.timeEnd('[bake-entry] bakeLightmap')
 
   window.__bakeResult = pixelsToDataURL(
     result.pixels,
