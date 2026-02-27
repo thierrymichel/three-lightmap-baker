@@ -31,6 +31,7 @@ const bilateralFilterShader = {
   `,
 
   fragmentShader: /* glsl */ `
+    precision highp float;
     uniform sampler2D tLightmap;
     uniform vec2 texelSize;
     uniform int kernelRadius;
@@ -76,7 +77,9 @@ const bilateralFilterShader = {
         }
       }
 
-      gl_FragColor = vec4(weightedSum / totalWeight, 1.0);
+      gl_FragColor = totalWeight > 0.0
+        ? vec4(weightedSum / totalWeight, 1.0)
+        : center;
     }
   `,
 }

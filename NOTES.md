@@ -1,5 +1,34 @@
 # NOTES
 
+## Commands
+
+### Docker
+
+```sh
+docker buildx build --platform linux/amd64 -t docker.io/thierrymichel/light-baking-test:latest --push .
+```
+
+```sh
+docker build --platform linux/amd64 -t docker.io/thierrymichel/light-baking-test:latest .
+docker push docker.io/thierrymichel/light-baking-test:latest
+```
+
+### Local
+
+```sh
+yarn bake --input dressing.glb --output 'output/lightmap.png' --resolution 512 --samples 16 --gpu
+```
+
+### Runpod
+
+```sh
+ssh 4oxb807suipr6z-64411fe2@ssh.runpod.io -i ~/.ssh/runpod
+yarn bake --input dressing.glb --output '/workspace/lightmap.png' --resolution 512 --samples 16 --gpu
+runpodctl send /workspace/lightmap.png
+```
+
+===
+
 ## Direct lighting: atténuation et N·L dosables
 
 ### Atténuation par distance (inverse-square avec `lightRadius`)

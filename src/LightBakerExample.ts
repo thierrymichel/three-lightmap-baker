@@ -21,6 +21,7 @@ import { MeshBVH } from 'three-mesh-bvh'
 import { Pane } from 'tweakpane'
 import { generateAtlas } from './atlas/generateAtlas'
 import { renderAtlas } from './atlas/renderAtlas'
+import { CONFIG } from './CONFIG'
 import type { Lightmapper, RaycastOptions } from './lightmap/Lightmapper'
 import { generateLightmapper } from './lightmap/Lightmapper'
 import { mergeGeometry } from './utils/GeometryUtils'
@@ -29,6 +30,7 @@ import { LoadGLTF } from './utils/LoaderUtils'
 const models = {
   'level_blockout.glb': 'level_blockout.glb',
   'dressing.glb': 'dressing.glb',
+  'iles.glb': 'iles.glb',
 }
 
 const renderMode = {
@@ -73,10 +75,11 @@ export class LightBakerExample {
   pane: Pane
 
   options = {
-    model: 'dressing.glb',
-    renderMode: 'beauty',
-    lightMapSize: 2048,
-    casts: 2,
+    model: CONFIG.model,
+    renderMode: CONFIG.renderMode,
+    lightMapSize: CONFIG.lightMapSize,
+    // casts: 2,
+    casts: 1,
     filterMode: 'linear',
     directLightEnabled: true,
     indirectLightEnabled: true,
@@ -283,14 +286,6 @@ export class LightBakerExample {
       if (mesh.isMesh) {
         // biome-ignore lint/suspicious/noExplicitAny: material is enhanced
         ;(mesh.material as any)._originalMap = (mesh.material as any).map
-        // if (mesh.name === 'wall_left') {
-        //   // biome-ignore lint/suspicious/noExplicitAny: color debug
-        //   ;(mesh.material as any).color = new Color(0xcc3333)
-        // }
-        // if (mesh.name === 'wall_right') {
-        //   // biome-ignore lint/suspicious/noExplicitAny: color debug
-        //   ;(mesh.material as any).color = new Color(0x3333cc)
-        // }
         this.currentModelMeshs.push(mesh)
       }
     })
@@ -325,6 +320,24 @@ export class LightBakerExample {
     this.normalTexture = atlas.normalTexture
 
     this.update()
+
+    // Comptage des attributs de géométrie par occurrence
+    const attrCounts: Record<string, number> = {}
+    for (const m of this.currentModelMeshs) {
+      for (const attrName of Object.keys(m.geometry.attributes)) {
+        attrCounts[attrName] = (attrCounts[attrName] ?? 0) + 1
+      }
+    }
+    const total = this.currentModelMeshs.length
+    const table = Object.entries(attrCounts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([attr, count]) => `${attr}: ${count}/${total}`)
+    console.table(
+      Object.fromEntries(
+        Object.entries(attrCounts).sort(([, a], [, b]) => b - a),
+      ),
+    )
+    console.log('Attributs par mesh:', table.join(' | '))
 
     const mergedGeomerty = mergeGeometry(this.currentModelMeshs)
     const bvh = new MeshBVH(mergedGeomerty)
@@ -377,7 +390,7 @@ export class LightBakerExample {
       this.pane.refresh()
       this.applyDenoise()
       console.log('✅')
-    }, 10000)
+    }, CONFIG.samples.timeout)
   }
 
   createDebugTexture(texture: Texture, position: Vector3) {

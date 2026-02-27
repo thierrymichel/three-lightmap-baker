@@ -61,7 +61,12 @@ const normalFragmentShader = `
     varying vec4 vNormal;
 
     void main() {
-        gl_FragColor = normalize(vNormal);
+        vec3 n = vNormal.xyz;
+        float len = length(n);
+
+        gl_FragColor = len > 0.001
+          ? vec4(normalize(n), 1.0)
+          : vec4(0.0, 1.0, 0.0, 1.0);
     }
 `
 

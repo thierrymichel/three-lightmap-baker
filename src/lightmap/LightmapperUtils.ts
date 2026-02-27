@@ -1,8 +1,9 @@
+import { CONFIG } from '../CONFIG'
 import type { Lightmapper } from './Lightmapper'
 
 export const renderSampleCount = async (
   lightmapper: Lightmapper,
-  samples: number = 10,
+  samples: number = CONFIG.samples.nb,
   onProgress?: (progress: number) => void,
 ) => {
   return new Promise<void>((resolve) => {

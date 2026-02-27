@@ -3,6 +3,7 @@ import path from 'node:path'
 import { parseArgs } from 'node:util'
 import { chromium } from 'playwright'
 import { createServer } from 'vite'
+import { CONFIG } from '../src/CONFIG'
 
 declare global {
   interface Window {
@@ -18,16 +19,24 @@ const { values: args } = parseArgs({
     input: { type: 'string', short: 'i' },
     output: { type: 'string', short: 'o' },
     resolution: { type: 'string', short: 'r', default: '1024' },
-    samples: { type: 'string', short: 's', default: '64' },
+    samples: {
+      type: 'string',
+      short: 's',
+      default: CONFIG.samples.nb.toString(),
+    },
     casts: { type: 'string', default: '2' },
     timeout: { type: 'string', default: '300000' },
     gpu: { type: 'boolean', default: false },
+    chromium: {
+      type: 'boolean',
+      default: Boolean(process.env.DOCKER || process.env.CI),
+    },
   },
 })
 
 if (!args.input || !args.output) {
   console.error(
-    'Usage: npx tsx scripts/bake-lightmap.ts --input <file.glb> --output <lightmap.png> [--resolution 1024] [--samples 64] [--casts 1] [--gpu]',
+    'Usage: npx tsx scripts/bake-lightmap.ts --input <file.glb> --output <lightmap.png> [--resolution 1024] [--samples 64] [--casts 1] [--gpu] [--chromium]',
   )
   process.exit(1)
 }
@@ -50,27 +59,30 @@ async function main() {
 
   const launchArgs = ['--no-sandbox', '--enable-webgl']
 
-  if (args.gpu) {
-    launchArgs.push('--use-gl=egl') // <-- nécessaire pour utiliser le GPU en headless
+  if (process.env.DOCKER || process.env.CI) {
+    launchArgs.push('--disable-dev-shm-usage')
+  }
+
+  if (args.gpu || process.platform === 'darwin') {
+    launchArgs.push(
+      process.platform === 'darwin' ? '--use-gl=angle' : '--use-gl=egl',
+    )
   } else {
     launchArgs.push('--use-gl=swiftshader')
   }
 
-  // const browser = await chromium.launch({
-  //   headless: true,
-  //   args: launchArgs,
-  // })
+  const useChromium = args.chromium
 
-  const browser = await chromium.launch({
-    headless: false, // NE PAS utiliser headless: true
-    channel: 'chrome', // utilise le Chrome système au lieu du Chromium Playwright
-    args: [
-      '--headless=new', // mode headless via le flag Chromium natif
-      '--no-sandbox',
-      '--enable-webgl',
-      '--use-gl=angle', // ANGLE utilise Metal sur macOS
-    ],
-  })
+  const browser = useChromium
+    ? await chromium.launch({
+        headless: true,
+        args: launchArgs,
+      })
+    : await chromium.launch({
+        headless: false,
+        channel: 'chrome',
+        args: [...launchArgs, '--headless=new'],
+      })
 
   const page = await browser.newPage()
 
@@ -88,7 +100,7 @@ async function main() {
   const params = new URLSearchParams({
     input: args.input as string,
     resolution: args.resolution ?? '1024',
-    samples: args.samples ?? '64',
+    samples: args.samples ?? CONFIG.samples.nb,
     casts: args.casts ?? '2',
   })
 

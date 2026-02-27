@@ -78,6 +78,7 @@ export class DenoiseMaterial extends MaterialBase {
         //
         //  This software is distributed under the terms of the BSD 2-Clause license
         //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        precision highp float;
         uniform sampler2D map;
         uniform float sigma;
         uniform float threshold;

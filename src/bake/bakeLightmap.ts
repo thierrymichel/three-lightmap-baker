@@ -3,6 +3,7 @@ import { Color, LinearFilter, type Mesh, type Object3D, Vector3 } from 'three'
 import { MeshBVH } from 'three-mesh-bvh'
 import { generateAtlas } from '../atlas/generateAtlas'
 import { renderAtlas } from '../atlas/renderAtlas'
+import { CONFIG } from '../CONFIG'
 import type { DenoiserOptions } from '../lightmap/LightmapDenoiser'
 import type { LightDef } from '../lightmap/Lightmapper'
 import { generateLightmapper } from '../lightmap/Lightmapper'
@@ -30,7 +31,7 @@ export type BakeOptions = {
 export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
   resolution: 1024,
   casts: 1,
-  samples: 64,
+  samples: CONFIG.samples.nb,
   filterMode: LinearFilter,
   lights: [
     {
@@ -117,10 +118,12 @@ export async function bakeLightmap(
   )
 
   console.log(`[bake] Rendering ${samples} samples...`)
+
   for (let i = 0; i < samples; i++) {
     lightmapper.render()
     options.onProgress?.(i + 1, samples)
   }
+
   console.log('[bake] Rendering complete')
 
   if (options.denoise?.enabled !== false) {
@@ -135,8 +138,38 @@ export async function bakeLightmap(
   renderer.readRenderTargetPixels(rt, 0, 0, resolution, resolution, pixels)
   console.timeEnd('[bake] Reading pixels')
 
+  // DEBUG start
+  let min = Infinity,
+    max = -Infinity,
+    nonZero = 0
+  for (let i = 0; i < pixels.length; i++) {
+    const v = pixels[i]
+    if (v < min) min = v
+    if (v > max) max = v
+    if (v > 0) nonZero++
+  }
+  console.log('[bake] Pixels debug:', {
+    min,
+    max,
+    nonZero,
+    total: pixels.length,
+  })
+
+  const buckets = [0, 0, 0, 0, 0] // 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1
+
+  for (let i = 0; i < pixels.length; i += 4) {
+    const v = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3
+    const b = Math.min(4, Math.floor(v * 5))
+    buckets[b]++
+  }
+
+  console.log('[bake] Value distribution:', buckets)
+  // DEBUG end
+
   const output = new Uint8Array(resolution * resolution * 4)
+
   console.log('[bake] Converting to Uint8Array')
+
   for (let i = 0; i < pixels.length; i++) {
     output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
   }

@@ -95,6 +95,7 @@ export class LightmapperMaterial extends ShaderMaterial {
             `,
 
       fragmentShader: /* glsl */ `
+                precision highp float;
                 precision highp isampler2D;
                 precision highp usampler2D;
                 ${shaderStructs}
@@ -168,7 +169,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                     float ang1 = (rand.x + 1.0) * 3.1415; // [-1..1) -> [0..2*PI)
                     float u = rand.y; // [-1..1), cos and acos(2v-1) cancel each other out, so we arrive at [-1..1)
                     float u2 = u * u;
-                    float sqrt1MinusU2 = sqrt(1.0 - u2);
+                    float sqrt1MinusU2 = sqrt(max(0.0, 1.0 - u2));
                     float x = sqrt1MinusU2 * cos(ang1);
                     float y = sqrt1MinusU2 * sin(ang1);
                     float z = u;
@@ -183,11 +184,11 @@ export class LightmapperMaterial extends ShaderMaterial {
                     float b = n.x * n.y * a;
                     vec3 b1 = vec3( 1.0 + sign * n.x * n.x * a, sign * b, - sign * n.x );
                     vec3 b2 = vec3( b, sign + n.y * n.y * a, - n.y );
-                    float r = sqrt( uv.x );
+                    float r = sqrt(max(0.0, uv.x));
                     float theta = 2.0 * 3.1415 * uv.y;
                     float x = r * cos( theta );
                     float y = r * sin( theta );
-                    return x * b1 + y * b2 + sqrt( 1.0 - uv.x ) * n;
+                    return x * b1 + y * b2 + sqrt(max(0.0, 1.0 - uv.x)) * n;
                 }
 
                 void main() {
@@ -288,6 +289,10 @@ export class LightmapperMaterial extends ShaderMaterial {
                         vec4 previous = texture2D(previousFrame, vUv);
                         float weight = 1.0 / float(sampleIndex + 1);
                         finalColor = mix(previous, finalColor, weight);
+                    }
+
+                    if (isnan(finalColor.r) || isnan(finalColor.g) || isnan(finalColor.b)) {
+                      finalColor = vec4(0.0, 0.0, 0.0, 1.0);
                     }
 
                     gl_FragColor = finalColor;
