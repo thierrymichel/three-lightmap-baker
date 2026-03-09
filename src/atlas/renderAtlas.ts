@@ -141,11 +141,21 @@ const offsets = [
   { x: 0, y: 0 },
 ]
 
+/**
+ * Renders position, normal, and albedo textures in UV2 atlas space.
+ * Optionally dilates texels to reduce seam bleeding.
+ *
+ * @param renderer - WebGL renderer
+ * @param meshes - Meshes with uv2 attribute (from generateAtlas)
+ * @param resolution - Atlas texture size (e.g. 1024)
+ * @param dilate - Whether to dilate texels (default: true)
+ * @returns { positionTexture, normalTexture, albedoTexture }
+ */
 export const renderAtlas = (
   renderer: WebGLRenderer,
-  meshs: Mesh[],
+  meshes: Mesh[],
   resolution: number,
-  dialate: boolean = true,
+  dilate: boolean = true,
 ) => {
   const renderWithShader = (material: ShaderMaterial): Texture => {
     const target = new WebGLRenderTarget(resolution, resolution, {
@@ -169,19 +179,19 @@ export const renderAtlas = (
     const lightMapMeshes = new Object3D()
     lightMapMeshes.matrixWorldAutoUpdate = false
 
-    for (const mesh of meshs) {
+    for (const mesh of meshes) {
       const lightMapMesh = mesh.clone()
       lightMapMesh.material = material
       lightMapMeshes.add(lightMapMesh)
     }
 
-    // Setup renderer
+    const prevAutoClear = renderer.autoClear
     renderer.autoClear = false
     renderer.setRenderTarget(target)
     renderer.setClearColor(0, 0)
     renderer.clear()
 
-    if (dialate) {
+    if (dilate) {
       for (const offset of offsets) {
         material.uniforms.offset.value.x = offset.x * (1 / resolution)
         material.uniforms.offset.value.y = offset.y * (1 / resolution)
@@ -194,6 +204,7 @@ export const renderAtlas = (
     renderer.render(lightMapMeshes, orthographicCamera)
 
     renderer.setRenderTarget(null)
+    renderer.autoClear = prevAutoClear
 
     return target.texture
   }
@@ -218,7 +229,7 @@ export const renderAtlas = (
     const albedoMeshes = new Object3D()
     albedoMeshes.matrixWorldAutoUpdate = false
 
-    for (const mesh of meshs) {
+    for (const mesh of meshes) {
       const albedoMesh = mesh.clone()
       const originalMap =
         (mesh.material as MeshStandardMaterial).map ?? whiteTexture
@@ -235,12 +246,13 @@ export const renderAtlas = (
       albedoMeshes.add(albedoMesh)
     }
 
+    const prevAutoClear = renderer.autoClear
     renderer.autoClear = false
     renderer.setRenderTarget(target)
     renderer.setClearColor(0, 0)
     renderer.clear()
 
-    if (dialate) {
+    if (dilate) {
       for (const offset of offsets) {
         sharedOffset.x = offset.x * (1 / resolution)
         sharedOffset.y = offset.y * (1 / resolution)
@@ -253,6 +265,7 @@ export const renderAtlas = (
     renderer.render(albedoMeshes, orthographicCamera)
 
     renderer.setRenderTarget(null)
+    renderer.autoClear = prevAutoClear
 
     return target.texture
   }

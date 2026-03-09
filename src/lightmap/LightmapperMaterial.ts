@@ -6,9 +6,10 @@ import {
   shaderIntersectFunction,
   shaderStructs,
 } from 'three-mesh-bvh'
+import { CONFIG } from '../CONFIG'
 import type { LightDef } from './Lightmapper'
 
-const MAX_LIGHTS = 2
+const MAX_LIGHTS = CONFIG.maxLights
 
 export type LightmapperMaterialOptions = {
   bvh: MeshBVH
@@ -106,7 +107,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform sampler2D normals;
                 uniform int casts;
 
-                #define MAX_LIGHTS 2
+                #define MAX_LIGHTS ${MAX_LIGHTS}
                 uniform vec3 lightPositions[MAX_LIGHTS];
                 uniform float lightSizes[MAX_LIGHTS];
                 uniform float lightIntensities[MAX_LIGHTS];
@@ -259,27 +260,27 @@ export class LightmapperMaterial extends ShaderMaterial {
                         }
                     }
 
-                    vec4 adverageDirectLight = vec4(totalDirectLight / float(max(numLights, 1)), 1.0);
-                    vec4 adverageAO = vec4(totalAO / float(casts), 1.0);
-                    vec4 adverageIndirectLight = vec4(totalIndirectLight / float(casts), 1.0);
+                    vec4 averageDirectLight = vec4(totalDirectLight / float(max(numLights, 1)), 1.0);
+                    vec4 averageAO = vec4(totalAO / float(casts), 1.0);
+                    vec4 averageIndirectLight = vec4(totalIndirectLight / float(casts), 1.0);
 
                     float multiplier = directLightEnabled && indirectLightEnabled ? 0.5 : 1.0;
 
                     vec4 finalColor = vec4(0.0);
 
                     if(directLightEnabled) {
-                        finalColor += adverageDirectLight * multiplier;
+                        finalColor += averageDirectLight * multiplier;
                     }
 
                     if(indirectLightEnabled) {
-                        finalColor += adverageIndirectLight * multiplier;
+                        finalColor += averageIndirectLight * multiplier;
                     }
 
                     if(ambientLightEnabled) {
                         if(!directLightEnabled && !indirectLightEnabled) {
-                            finalColor = adverageAO;
+                            finalColor = averageAO;
                         } else {
-                            finalColor *= adverageAO;
+                            finalColor *= averageAO;
                         }
                     }
 

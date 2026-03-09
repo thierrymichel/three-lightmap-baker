@@ -1,6 +1,13 @@
 import { Mesh } from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 
+/**
+ * Merges mesh geometries into a single BufferGeometry for BVH construction.
+ * Applies world matrix, removes unused attributes (color, uv1).
+ *
+ * @param meshes - Meshes with uv2 (from generateAtlas)
+ * @returns Merged BufferGeometry
+ */
 export const mergeGeometry = (meshes: Mesh[]) => {
   return mergeGeometries(
     meshes.map((mesh) => {

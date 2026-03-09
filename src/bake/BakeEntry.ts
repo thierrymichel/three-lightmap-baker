@@ -10,6 +10,7 @@ import {
   WebGLRenderer,
 } from 'three'
 import { loadXAtlasThree } from '../atlas/generateAtlas'
+import { CONFIG } from '../CONFIG'
 import type { LightDef } from '../lightmap/Lightmapper'
 import {
   bakeLightmap,
@@ -80,17 +81,22 @@ function parseParams(): {
 async function main() {
   const config = parseParams()
 
-  console.log(
-    '[bake-entry] Config:',
-    JSON.stringify({ ...config, lights: `${config.lights.length} light(s)` }),
-  )
+  if (CONFIG.debug) {
+    console.log(
+      '[bake-entry] Config:',
+      JSON.stringify({ ...config, lights: `${config.lights.length} light(s)` }),
+    )
+  }
 
   await loadXAtlasThree()
 
   const renderer = new WebGLRenderer({ preserveDrawingBuffer: true })
   renderer.setSize(config.resolution, config.resolution)
 
-  console.time('[bake-entry] bakeLightmap')
+  if (CONFIG.debug) {
+    console.time('[bake-entry] bakeLightmap')
+  }
+
   const result = await bakeLightmap(renderer, {
     modelUrl: config.input,
     resolution: config.resolution,
@@ -107,12 +113,15 @@ async function main() {
     albedoEnabled: defaultBakeOptions.albedoEnabled,
     denoise: defaultBakeOptions.denoise,
     onProgress: (sample, total) => {
-      if (sample % 10 === 0 || sample === total) {
+      if (CONFIG.debug && (sample % 10 === 0 || sample === total)) {
         console.log(`[bake-entry] Sample ${sample}/${total}`)
       }
     },
   })
-  console.timeEnd('[bake-entry] bakeLightmap')
+
+  if (CONFIG.debug) {
+    console.timeEnd('[bake-entry] bakeLightmap')
+  }
 
   window.__bakeResult = pixelsToDataURL(
     result.pixels,
@@ -161,10 +170,16 @@ async function main() {
 
   renderer.render(scene, camera)
   window.__bakeRender = renderer.domElement.toDataURL('image/png')
-  console.log('[bake-entry] Render captured')
+
+  if (CONFIG.debug) {
+    console.log('[bake-entry] Render captured')
+  }
 
   window.__bakeComplete = true
-  console.log('[bake-entry] Done')
+
+  if (CONFIG.debug) {
+    console.log('[bake-entry] Done')
+  }
 
   renderer.dispose()
 }

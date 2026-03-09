@@ -1,7 +1,14 @@
+import type { ShaderMaterialParameters } from 'three'
 import { NoBlending, ShaderMaterial } from 'three'
 
+/**
+ * Alternative smart denoise shader (glslSmartDeNoise).
+ * Not wired into the main pipeline — LightmapDenoiser (bilateral filter) is used instead.
+ * Kept for potential future use or experimentation.
+ */
+
 export class MaterialBase extends ShaderMaterial {
-  constructor(shader) {
+  constructor(shader: ShaderMaterialParameters) {
     super(shader)
 
     for (const key in this.uniforms) {
@@ -17,8 +24,8 @@ export class MaterialBase extends ShaderMaterial {
     }
   }
 
-  // sets the given named define value and sets "needsUpdate" to true if it's different
-  setDefine(name, value = undefined) {
+  /** Sets the given named define value and sets needsUpdate to true if different. */
+  setDefine(name: string, value: string | number | undefined = undefined) {
     if (value === undefined || value === null) {
       if (name in this.defines) {
         delete this.defines[name]
@@ -33,8 +40,9 @@ export class MaterialBase extends ShaderMaterial {
   }
 }
 
+/** @deprecated Not used in main pipeline. See LightmapDenoiser. */
 export class DenoiseMaterial extends MaterialBase {
-  constructor(parameters) {
+  constructor(parameters?: Partial<ShaderMaterialParameters>) {
     super({
       blending: NoBlending,
 
@@ -128,6 +136,8 @@ export class DenoiseMaterial extends MaterialBase {
       `,
     })
 
-    this.setValues(parameters)
+    if (parameters) {
+      this.setValues(parameters)
+    }
   }
 }

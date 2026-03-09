@@ -56,10 +56,10 @@ export class LightBakerExample {
 
   lightDummy1: Object3D
   lightDummy2: Object3D
-  lightTranformController: TransformControls
+  lightTransformController: TransformControls
 
   currentModel: Object3D
-  currentModelMeshs: Mesh[] = []
+  currentModelMeshes: Mesh[] = []
 
   uvDebugTexture: Texture
   positionTexture: Texture
@@ -95,6 +95,7 @@ export class LightBakerExample {
     denoiseSpatialSigma: 2.0,
     denoiseRangeSigma: 0.1,
     debugTextures: false,
+    debug: CONFIG.debug,
     pause: false,
   }
 
@@ -130,21 +131,21 @@ export class LightBakerExample {
     this.lightDummy2 = new Object3D()
     this.lightDummy2.position.set(-5.0, 30.0, -10.0)
 
-    this.lightTranformController = new TransformControls(
+    this.lightTransformController = new TransformControls(
       this.camera,
       this.renderer.domElement,
     )
-    this.lightTranformController.addEventListener(
+    this.lightTransformController.addEventListener(
       'dragging-changed',
       (event) => {
         this.controls.enabled = !event.value
       },
     )
-    this.lightTranformController.attach(this.lightDummy1)
-    this.lightTranformController.attach(this.lightDummy2)
+    this.lightTransformController.attach(this.lightDummy1)
+    this.lightTransformController.attach(this.lightDummy2)
     this.scene.add(this.lightDummy1)
     this.scene.add(this.lightDummy2)
-    this.scene.add(this.lightTranformController.getHelper())
+    this.scene.add(this.lightTransformController.getHelper())
 
     this.pane = new Pane()
     this.pane
@@ -158,44 +159,50 @@ export class LightBakerExample {
       })
       .on('change', () => this.onRenderModeChange())
 
-    this.pane.addBinding(this.options, 'lightMapSize', {
+    const lightMapFolder = this.pane.addFolder({ title: 'lightMap' })
+    lightMapFolder.addBinding(this.options, 'lightMapSize', {
       max: 4096,
       min: 128,
       step: 128,
     })
-
-    this.pane.addBinding(this.options, 'casts', {
+    lightMapFolder.addBinding(this.options, 'casts', {
       max: 4,
       min: 1,
       step: 1,
     })
+    lightMapFolder
+      .addBinding(this.options, 'filterMode', {
+        options: Filter,
+      })
+      .on('change', () => this.onRenderModeChange())
+    lightMapFolder.addBinding(this.options, 'bounce')
+    lightMapFolder.addBinding(this.options, 'albedo')
 
-    this.pane.addBinding(this.options, 'directLightEnabled')
-    this.pane.addBinding(this.options, 'indirectLightEnabled')
-    this.pane.addBinding(this.options, 'ambientLightEnabled')
-    this.pane.addBinding(this.options, 'ambientDistance', {
+    const lightsFolder = this.pane.addFolder({ title: 'lights' })
+    lightsFolder.addBinding(this.options, 'directLightEnabled')
+    lightsFolder.addBinding(this.options, 'indirectLightEnabled')
+    lightsFolder.addBinding(this.options, 'ambientLightEnabled')
+    lightsFolder.addBinding(this.options, 'ambientDistance', {
       max: 2,
       min: 0.01,
     })
-    this.pane.addBinding(this.options, 'lightIntensity', {
+    lightsFolder.addBinding(this.options, 'lightIntensity', {
       max: 5,
       min: 0,
       step: 0.1,
     })
-    this.pane.addBinding(this.options, 'lightRadius', {
+    lightsFolder.addBinding(this.options, 'lightRadius', {
       max: 200,
       min: 1,
       step: 1,
     })
-    this.pane.addBinding(this.options, 'nDotLStrength', {
+    lightsFolder.addBinding(this.options, 'nDotLStrength', {
       max: 1,
       min: 0,
       step: 0.05,
     })
-    this.pane.addBinding(this.options, 'bounce')
-    this.pane.addBinding(this.options, 'albedo')
 
-    const denoiseFolder = this.pane.addFolder({ title: 'Denoise' })
+    const denoiseFolder = this.pane.addFolder({ title: 'denoise' })
     denoiseFolder
       .addBinding(this.options, 'denoise')
       .on('change', () => this.applyDenoise())
@@ -224,15 +231,13 @@ export class LightBakerExample {
       })
       .on('change', () => this.applyDenoise())
 
-    this.pane
+    const debugFolder = this.pane.addFolder({ title: 'debug' })
+    debugFolder
       .addBinding(this.options, 'debugTextures')
       .on('change', () => this.onRenderModeChange())
-
-    this.pane
-      .addBinding(this.options, 'filterMode', {
-        options: Filter,
-      })
-      .on('change', () => this.onRenderModeChange())
+    debugFolder.addBinding(this.options, 'debug').on('change', (ev) => {
+      CONFIG.debug = ev.value
+    })
 
     this.pane
       .addButton({
@@ -274,7 +279,7 @@ export class LightBakerExample {
     this.controls.target.set(1, 1, 1) // par exemple, centrer un peu plus haut
     this.controls.update()
 
-    this.currentModelMeshs = []
+    this.currentModelMeshes = []
 
     this.lightmapper = null
 
@@ -286,7 +291,7 @@ export class LightBakerExample {
       if (mesh.isMesh) {
         // biome-ignore lint/suspicious/noExplicitAny: material is enhanced
         ;(mesh.material as any)._originalMap = (mesh.material as any).map
-        this.currentModelMeshs.push(mesh)
+        this.currentModelMeshes.push(mesh)
       }
     })
 
@@ -304,7 +309,7 @@ export class LightBakerExample {
   }
 
   async updateAtlasTextures() {
-    await generateAtlas(this.currentModelMeshs)
+    await generateAtlas(this.currentModelMeshes)
   }
 
   async generateLightmap() {
@@ -312,7 +317,7 @@ export class LightBakerExample {
 
     const atlas = renderAtlas(
       this.renderer,
-      this.currentModelMeshs,
+      this.currentModelMeshes,
       resolution,
       true,
     )
@@ -321,26 +326,28 @@ export class LightBakerExample {
 
     this.update()
 
-    // Comptage des attributs de géométrie par occurrence
-    const attrCounts: Record<string, number> = {}
-    for (const m of this.currentModelMeshs) {
-      for (const attrName of Object.keys(m.geometry.attributes)) {
-        attrCounts[attrName] = (attrCounts[attrName] ?? 0) + 1
+    // Comptage des attributs de géométrie par occurrence (debug)
+    if (CONFIG.debug) {
+      const attrCounts: Record<string, number> = {}
+      for (const m of this.currentModelMeshes) {
+        for (const attrName of Object.keys(m.geometry.attributes)) {
+          attrCounts[attrName] = (attrCounts[attrName] ?? 0) + 1
+        }
       }
+      const total = this.currentModelMeshes.length
+      const table = Object.entries(attrCounts)
+        .sort(([, a], [, b]) => b - a)
+        .map(([attr, count]) => `${attr}: ${count}/${total}`)
+      console.table(
+        Object.fromEntries(
+          Object.entries(attrCounts).sort(([, a], [, b]) => b - a),
+        ),
+      )
+      console.log('Attributs par mesh:', table.join(' | '))
     }
-    const total = this.currentModelMeshs.length
-    const table = Object.entries(attrCounts)
-      .sort(([, a], [, b]) => b - a)
-      .map(([attr, count]) => `${attr}: ${count}/${total}`)
-    console.table(
-      Object.fromEntries(
-        Object.entries(attrCounts).sort(([, a], [, b]) => b - a),
-      ),
-    )
-    console.log('Attributs par mesh:', table.join(' | '))
 
-    const mergedGeomerty = mergeGeometry(this.currentModelMeshs)
-    const bvh = new MeshBVH(mergedGeomerty)
+    const mergedGeometry = mergeGeometry(this.currentModelMeshes)
+    const bvh = new MeshBVH(mergedGeometry)
 
     const lightmapperOptions: RaycastOptions = {
       resolution: resolution,
@@ -389,7 +396,10 @@ export class LightBakerExample {
       this.options.pause = true
       this.pane.refresh()
       this.applyDenoise()
-      console.log('✅')
+
+      if (CONFIG.debug) {
+        console.log('✅')
+      }
     }, CONFIG.samples.timeout)
   }
 
@@ -453,49 +463,46 @@ export class LightBakerExample {
   }
 
   onRenderModeChange() {
-    this.currentModel.traverse((child: any) => {
-      if (child.isMesh) {
-        // child.material = new MeshBasicMaterial();
-        child.material.map = null
+    if (!this.currentModel) {
+      return
+    }
 
-        if (this.options.renderMode === 'standard') {
-          child.material.lightMap = null
-          child.material.map = child.material._originalMap
+    this.currentModel.traverse((child: Object3D) => {
+      if ((child as Mesh).isMesh) {
+        const mesh = child as Mesh
+        // biome-ignore lint/suspicious/noExplicitAny: material has _originalMap and lightMap
+        const mat = mesh.material as any
+        mat.map = null
+
+        const mode = this.options.renderMode
+        if (mode === 'standard') {
+          mat.lightMap = null
+          mat.map = mat._originalMap
+        } else if (
+          mode === 'positions' ||
+          mode === 'normals' ||
+          mode === 'uv' ||
+          mode === 'lightmap' ||
+          mode === 'beauty'
+        ) {
+          mat.lightMap =
+            mode === 'positions'
+              ? this.positionTexture
+              : mode === 'normals'
+                ? this.normalTexture
+                : mode === 'uv'
+                  ? this.uvDebugTexture
+                  : this.lightmapTexture.texture
+          mat.lightMap.channel = 2
+          if (mode === 'beauty') mat.map = mat._originalMap
         }
 
-        if (this.options.renderMode === 'positions') {
-          child.material.lightMap = this.positionTexture
-          child.material.lightMap.channel = 2
+        if (mat.lightMap) {
+          mat.lightMap.needsUpdate = true
+          mat.lightMap.channel = 2
         }
-
-        if (this.options.renderMode === 'normals') {
-          child.material.lightMap = this.normalTexture
-          child.material.lightMap.channel = 2
-        }
-
-        if (this.options.renderMode === 'uv') {
-          child.material.lightMap = this.uvDebugTexture
-          child.material.lightMap.channel = 2
-        }
-
-        if (this.options.renderMode === 'lightmap') {
-          child.material.lightMap = this.lightmapTexture.texture
-          child.material.lightMap.channel = 2
-        }
-
-        if (this.options.renderMode === 'beauty') {
-          child.material.lightMap = this.lightmapTexture.texture
-          child.material.lightMap.channel = 2
-          child.material.map = child.material._originalMap
-        }
-
-        if (child.material.lightMap) {
-          child.material.lightMap.needsUpdate = true
-          child.material.lightMap.channel = 2
-        }
-
-        child.material.lightMapIntensity = 1
-        child.material.needsUpdate = true
+        mat.lightMapIntensity = 1
+        mat.needsUpdate = true
       }
     })
 
@@ -513,8 +520,9 @@ export class LightBakerExample {
 
     if (this.lightmapper && !this.options.pause) {
       const samples = this.lightmapper.render()
-
-      console.log('samples', samples)
+      if (CONFIG.debug) {
+        console.log('samples', samples)
+      }
     }
     this.controls.update()
     this.renderer.render(this.scene, this.camera)

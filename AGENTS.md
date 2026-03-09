@@ -4,6 +4,19 @@
 
 GPU lightmap baker for Three.js scenes. Loads GLB models, UV-unwraps them with XAtlas, renders world-position/normal atlas textures, then raycasts via three-mesh-bvh on the GPU to produce a baked lightmap with optional bilateral denoising.
 
+## Vision (target UX)
+
+In the browser, the user can:
+
+- upload their GLB model
+- add, edit, and remove lights
+- preview the render
+
+When satisfied, they can:
+
+- either save their configuration for use with the `bake` script
+- or generate the lightmap and download it
+
 ## Tech stack
 
 - **Language**: TypeScript (ESM, `"type": "module"`)
@@ -86,8 +99,9 @@ Uses Playwright to launch Chrome in headless mode, navigates to `bake.html?input
 
 ## Gotchas
 
-- `MAX_LIGHTS` is hardcoded to 2 in `LightmapperMaterial.ts` (GLSL arrays are fixed-size)
+- `CONFIG.debug` (default `false`) gates all console logs and debug blocks (attributs stats, pixels distribution, XAtlas progress, etc.). Set to `true` for development or headless bake debugging.
+- `MAX_LIGHTS` is configurable via `CONFIG.maxLights` (default 4); GLSL arrays remain fixed-size at compile time
 - XAtlas WASM must be loaded before any atlas operation (`loadXAtlasThree()`)
 - The interactive demo auto-pauses accumulation after 2.5s via `setTimeout` — there is no convergence criterion yet
-- `DenoiseMaterial.ts` (smart denoise) exists but is not wired into the main pipeline; the active denoiser is `LightmapDenoiser.ts` (bilateral filter)
+- `DenoiseMaterial.ts` (smart denoise, `@deprecated`) is kept with annotations but not wired; the active denoiser is `LightmapDenoiser.ts` (bilateral filter)
 - Headless bake requires system Chrome (`channel: 'chrome'`) with `--headless=new` for Metal/ANGLE GPU access on macOS

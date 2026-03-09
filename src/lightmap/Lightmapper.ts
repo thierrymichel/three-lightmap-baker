@@ -24,6 +24,7 @@ import {
 } from './LightmapDenoiser'
 import { LightmapperMaterial } from './LightmapperMaterial'
 
+/** Point light definition for the lightmapper. */
 export type LightDef = {
   position: Vector3
   size: number
@@ -32,6 +33,7 @@ export type LightDef = {
   distance: number
 }
 
+/** Options for the lightmapper raycast pass. */
 export type RaycastOptions = {
   resolution: number
   casts: number
@@ -47,6 +49,7 @@ export type RaycastOptions = {
   albedoEnabled: boolean
 }
 
+/** Lightmapper instance: render texture, render/denoise methods. */
 export type Lightmapper = {
   renderTexture: WebGLRenderTarget
   render: () => number
@@ -54,6 +57,18 @@ export type Lightmapper = {
   denoiserOptions: DenoiserOptions
 }
 
+/**
+ * Creates a lightmapper: fullscreen quad that raycasts via BVH per texel.
+ * Uses ping-pong accumulation for progressive refinement.
+ *
+ * @param renderer - WebGL renderer
+ * @param positions - World position atlas texture
+ * @param normals - Normal atlas texture
+ * @param albedo - Albedo atlas texture (for indirect bounce)
+ * @param bvh - MeshBVH acceleration structure
+ * @param options - Raycast options
+ * @returns Lightmapper with render(), denoise(), renderTexture
+ */
 export const generateLightmapper = (
   renderer: WebGLRenderer,
   positions: Texture,

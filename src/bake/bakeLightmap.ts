@@ -10,6 +10,7 @@ import { generateLightmapper } from '../lightmap/Lightmapper'
 import { mergeGeometry } from '../utils/GeometryUtils'
 import { LoadGLTF } from '../utils/LoaderUtils'
 
+/** Options for the headless bake pipeline. */
 export type BakeOptions = {
   modelUrl: string
   resolution: number
@@ -59,6 +60,7 @@ export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
   denoise: { enabled: true },
 }
 
+/** Result of a bake: RGBA pixels, scene, meshes, and the lightmap render target. */
 export type BakeResult = {
   pixels: Uint8Array
   gltfScene: Object3D
@@ -66,6 +68,15 @@ export type BakeResult = {
   renderTarget: WebGLRenderTarget
 }
 
+/**
+ * Bakes a lightmap for a GLB model: loads, UV-unwraps, renders atlas, builds BVH,
+ * accumulates samples, optionally denoises, and returns RGBA pixels.
+ *
+ * @param renderer - WebGL renderer (preserveDrawingBuffer recommended for readPixels)
+ * @param options - Bake configuration
+ * @returns BakeResult with pixels, scene, meshes, and render target
+ * @throws If no meshes found in the model
+ */
 export async function bakeLightmap(
   renderer: WebGLRenderer,
   options: BakeOptions,
@@ -84,17 +95,26 @@ export async function bakeLightmap(
     throw new Error(`No meshes found in ${options.modelUrl}`)
   }
 
-  console.log(`[bake] ${meshes.length} meshes loaded`)
+  if (CONFIG.debug) {
+    console.log(`[bake] ${meshes.length} meshes loaded`)
+  }
 
   await generateAtlas(meshes)
-  console.log('[bake] Atlas UV2 generated')
+  if (CONFIG.debug) {
+    console.log('[bake] Atlas UV2 generated')
+  }
 
   const atlas = renderAtlas(renderer, meshes, resolution, true)
-  console.log('[bake] Position/normal textures rendered')
+  if (CONFIG.debug) {
+    console.log('[bake] Position/normal textures rendered')
+  }
 
   const mergedGeometry = mergeGeometry(meshes)
   const bvh = new MeshBVH(mergedGeometry)
-  console.log('[bake] BVH built')
+
+  if (CONFIG.debug) {
+    console.log('[bake] BVH built')
+  }
 
   const lightmapper = generateLightmapper(
     renderer,
@@ -117,58 +137,71 @@ export async function bakeLightmap(
     },
   )
 
-  console.log(`[bake] Rendering ${samples} samples...`)
+  if (CONFIG.debug) {
+    console.log(`[bake] Rendering ${samples} samples...`)
+  }
 
   for (let i = 0; i < samples; i++) {
     lightmapper.render()
     options.onProgress?.(i + 1, samples)
   }
 
-  console.log('[bake] Rendering complete')
+  if (CONFIG.debug) {
+    console.log('[bake] Rendering complete')
+  }
 
   if (options.denoise?.enabled !== false) {
     lightmapper.denoise({ enabled: true, ...options.denoise })
-    console.log('[bake] Denoised')
+    if (CONFIG.debug) {
+      console.log('[bake] Denoised')
+    }
   }
 
   const rt = lightmapper.renderTexture
   const pixels = new Float32Array(resolution * resolution * 4)
-  console.log('[bake] Reading pixels')
-  console.time('[bake] Reading pixels')
+
+  if (CONFIG.debug) {
+    console.log('[bake] Reading pixels')
+    console.time('[bake] Reading pixels')
+  }
+
   renderer.readRenderTargetPixels(rt, 0, 0, resolution, resolution, pixels)
-  console.timeEnd('[bake] Reading pixels')
 
-  // DEBUG start
-  let min = Infinity,
-    max = -Infinity,
-    nonZero = 0
-  for (let i = 0; i < pixels.length; i++) {
-    const v = pixels[i]
-    if (v < min) min = v
-    if (v > max) max = v
-    if (v > 0) nonZero++
-  }
-  console.log('[bake] Pixels debug:', {
-    min,
-    max,
-    nonZero,
-    total: pixels.length,
-  })
-
-  const buckets = [0, 0, 0, 0, 0] // 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1
-
-  for (let i = 0; i < pixels.length; i += 4) {
-    const v = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3
-    const b = Math.min(4, Math.floor(v * 5))
-    buckets[b]++
+  if (CONFIG.debug) {
+    console.timeEnd('[bake] Reading pixels')
   }
 
-  console.log('[bake] Value distribution:', buckets)
-  // DEBUG end
+  if (CONFIG.debug) {
+    let min = Infinity,
+      max = -Infinity,
+      nonZero = 0
+    for (let i = 0; i < pixels.length; i++) {
+      const v = pixels[i]
+      if (v < min) min = v
+      if (v > max) max = v
+      if (v > 0) nonZero++
+    }
+    console.log('[bake] Pixels debug:', {
+      min,
+      max,
+      nonZero,
+      total: pixels.length,
+    })
+
+    const buckets = [0, 0, 0, 0, 0] // 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1
+    for (let i = 0; i < pixels.length; i += 4) {
+      const v = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3
+      const b = Math.min(4, Math.floor(v * 5))
+      buckets[b]++
+    }
+    console.log('[bake] Value distribution:', buckets)
+  }
 
   const output = new Uint8Array(resolution * resolution * 4)
 
-  console.log('[bake] Converting to Uint8Array')
+  if (CONFIG.debug) {
+    console.log('[bake] Converting to Uint8Array')
+  }
 
   for (let i = 0; i < pixels.length; i++) {
     output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
@@ -182,6 +215,14 @@ export async function bakeLightmap(
   }
 }
 
+/**
+ * Converts RGBA pixels to a PNG data URL.
+ *
+ * @param pixels - Uint8Array RGBA (width * height * 4)
+ * @param width - Image width
+ * @param height - Image height
+ * @returns data:image/png;base64,... URL
+ */
 export function pixelsToDataURL(
   pixels: Uint8Array,
   width: number,
