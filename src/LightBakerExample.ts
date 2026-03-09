@@ -30,7 +30,10 @@ import { LoadGLTF } from './utils/LoaderUtils'
 const models = {
   'level_blockout.glb': 'level_blockout.glb',
   'dressing.glb': 'dressing.glb',
+  'dressing_x1.glb': 'dressing_x1.glb',
+  'dressing_x5.glb': 'dressing_x5.glb',
   'iles.glb': 'iles.glb',
+  'ile_energie.glb': 'ile_energie.glb',
 }
 
 const renderMode = {
