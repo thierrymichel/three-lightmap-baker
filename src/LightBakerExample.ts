@@ -18,6 +18,7 @@ import {
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { TransformControls } from 'three/examples/jsm/controls/TransformControls'
 import { MeshBVH } from 'three-mesh-bvh'
+import type { FolderApi } from 'tweakpane'
 import { Pane } from 'tweakpane'
 import { generateAtlas } from './atlas/generateAtlas'
 import { renderAtlas } from './atlas/renderAtlas'
@@ -26,6 +27,20 @@ import type { Lightmapper, RaycastOptions } from './lightmap/Lightmapper'
 import { generateLightmapper } from './lightmap/Lightmapper'
 import { mergeGeometry } from './utils/GeometryUtils'
 import { LoadGLTF } from './utils/LoaderUtils'
+
+type PointLightConfig = {
+  position: Vector3
+  enabled: boolean
+  size: number
+}
+
+const defaultPointLights: PointLightConfig[] = CONFIG.pointLights.map(
+  (cfg) => ({
+    position: new Vector3(...cfg.position),
+    enabled: cfg.enabled,
+    size: cfg.size,
+  }),
+)
 
 const models = {
   'level_blockout.glb': 'level_blockout.glb',
@@ -57,9 +72,9 @@ export class LightBakerExample {
   controls: OrbitControls
   directionalLight: DirectionalLight
 
-  lightDummy1: Object3D
-  lightDummy2: Object3D
-  lightTransformController: TransformControls
+  pointLightConfigs: PointLightConfig[]
+  pointLightDummies: Object3D[] = []
+  pointLightControls: TransformControls[] = []
 
   currentModel: Object3D
   currentModelMeshes: Mesh[] = []
@@ -81,7 +96,7 @@ export class LightBakerExample {
     model: CONFIG.model,
     renderMode: CONFIG.renderMode,
     lightMapSize: CONFIG.lightMapSize,
-    // casts: 2,
+    samples: CONFIG.samples,
     casts: 1,
     filterMode: 'linear',
     directLightEnabled: true,
@@ -94,12 +109,12 @@ export class LightBakerExample {
     bounce: true,
     albedo: true,
     denoise: false,
-    denoiseKernelRadius: 2,
+    denoiseKernelRadius: 3,
     denoiseSpatialSigma: 2.0,
-    denoiseRangeSigma: 0.1,
+    denoiseRangeSigma: 0.5,
     debugTextures: false,
     debug: CONFIG.debug,
-    pause: false,
+    accumulating: false,
   }
 
   constructor(uvDebugTexture: Texture) {
@@ -128,27 +143,24 @@ export class LightBakerExample {
 
     this.directionalLight = new DirectionalLight(0xffffff, 1)
 
-    this.lightDummy1 = new Object3D()
-    this.lightDummy1.position.set(25.0, 30.0, 2.0)
+    this.pointLightConfigs = defaultPointLights.map((cfg) => ({ ...cfg }))
+    for (const cfg of this.pointLightConfigs) {
+      const dummy = new Object3D()
+      dummy.position.copy(cfg.position)
+      this.scene.add(dummy)
+      this.pointLightDummies.push(dummy)
 
-    this.lightDummy2 = new Object3D()
-    this.lightDummy2.position.set(-5.0, 30.0, -10.0)
-
-    this.lightTransformController = new TransformControls(
-      this.camera,
-      this.renderer.domElement,
-    )
-    this.lightTransformController.addEventListener(
-      'dragging-changed',
-      (event) => {
+      const tc = new TransformControls(this.camera, this.renderer.domElement)
+      tc.attach(dummy)
+      tc.addEventListener('dragging-changed', (event) => {
         this.controls.enabled = !event.value
-      },
-    )
-    this.lightTransformController.attach(this.lightDummy1)
-    this.lightTransformController.attach(this.lightDummy2)
-    this.scene.add(this.lightDummy1)
-    this.scene.add(this.lightDummy2)
-    this.scene.add(this.lightTransformController.getHelper())
+        if (!event.value) this.resetAccumulation()
+      })
+      const helper = tc.getHelper()
+      helper.visible = cfg.enabled
+      this.scene.add(helper)
+      this.pointLightControls.push(tc)
+    }
 
     this.pane = new Pane()
     this.pane
@@ -168,6 +180,11 @@ export class LightBakerExample {
       min: 128,
       step: 128,
     })
+    lightMapFolder.addBinding(this.options, 'samples', {
+      max: 256,
+      min: 1,
+      step: 1,
+    })
     lightMapFolder.addBinding(this.options, 'casts', {
       max: 4,
       min: 1,
@@ -182,6 +199,7 @@ export class LightBakerExample {
     lightMapFolder.addBinding(this.options, 'albedo')
 
     const lightsFolder = this.pane.addFolder({ title: 'lights' })
+    this.setupPointLightFolders(lightsFolder)
     lightsFolder.addBinding(this.options, 'directLightEnabled')
     lightsFolder.addBinding(this.options, 'indirectLightEnabled')
     lightsFolder.addBinding(this.options, 'ambientLightEnabled')
@@ -228,7 +246,7 @@ export class LightBakerExample {
     denoiseFolder
       .addBinding(this.options, 'denoiseRangeSigma', {
         label: 'range σ',
-        max: 0.5,
+        max: 1.0,
         min: 0.01,
         step: 0.01,
       })
@@ -247,18 +265,8 @@ export class LightBakerExample {
         title: 'Reset',
       })
       .on('click', () => {
-        this.options.pause = false
-        this.pane.refresh()
-
         this.generateLightmap()
-
-        // Todo: Not sure why need this in a timeout...
-        setTimeout(() => {
-          this.lightmapper.render()
-        }, 0)
       })
-
-    this.pane.addBinding(this.options, 'pause')
 
     this.initialSetup()
   }
@@ -352,27 +360,23 @@ export class LightBakerExample {
     const mergedGeometry = mergeGeometry(this.currentModelMeshes)
     const bvh = new MeshBVH(mergedGeometry)
 
+    const pointLights = this.pointLightConfigs
+      .map((cfg, i) => ({ cfg, dummy: this.pointLightDummies[i] }))
+      .filter(({ cfg }) => cfg.enabled)
+      .map(({ cfg, dummy }) => ({
+        position: dummy.position,
+        size: cfg.size,
+        intensity: this.options.lightIntensity,
+        color: new Color(0xffffff),
+        distance: this.options.lightRadius,
+      }))
+
     const lightmapperOptions: RaycastOptions = {
       resolution: resolution,
       casts: this.options.casts,
       filterMode:
         this.options.filterMode === 'linear' ? LinearFilter : NearestFilter,
-      lights: [
-        {
-          position: this.lightDummy1.position,
-          size: 3,
-          intensity: this.options.lightIntensity * 0.5,
-          color: new Color(0xffffff),
-          distance: this.options.lightRadius,
-        },
-        {
-          position: this.lightDummy2.position,
-          size: 3,
-          intensity: this.options.lightIntensity,
-          color: new Color(0xffffff),
-          distance: this.options.lightRadius,
-        },
-      ],
+      pointLights,
       ambientDistance: this.options.ambientDistance,
       nDotLStrength: this.options.nDotLStrength,
       ambientLightEnabled: this.options.ambientLightEnabled,
@@ -391,19 +395,9 @@ export class LightBakerExample {
       lightmapperOptions,
     )
     this.lightmapTexture = this.lightmapper.renderTexture
+    this.options.accumulating = true
 
     this.onRenderModeChange()
-
-    // Auto-pause + denoise
-    setTimeout(() => {
-      this.options.pause = true
-      this.pane.refresh()
-      this.applyDenoise()
-
-      if (CONFIG.debug) {
-        console.log('✅')
-      }
-    }, CONFIG.samples.timeout)
   }
 
   createDebugTexture(texture: Texture, position: Vector3) {
@@ -424,7 +418,9 @@ export class LightBakerExample {
   }
 
   applyDenoise() {
-    if (!this.lightmapper) return
+    if (!this.lightmapper) {
+      return
+    }
 
     this.lightmapper.denoise({
       enabled: this.options.denoise,
@@ -434,6 +430,28 @@ export class LightBakerExample {
     })
     this.lightmapTexture = this.lightmapper.renderTexture
     this.onRenderModeChange()
+  }
+
+  setupPointLightFolders(parent: FolderApi) {
+    for (let i = 0; i < this.pointLightConfigs.length; i++) {
+      const cfg = this.pointLightConfigs[i]
+      const dummy = this.pointLightDummies[i]
+      const folder = parent.addFolder({ title: `Point Light ${i + 1}` })
+      folder.addBinding(cfg, 'enabled').on('change', () => {
+        this.pointLightControls[i].getHelper().visible = cfg.enabled
+        this.generateLightmap()
+      })
+      folder.addBinding(dummy.position, 'x', { readonly: true, label: 'pos x' })
+      folder.addBinding(dummy.position, 'y', { readonly: true, label: 'pos y' })
+      folder.addBinding(dummy.position, 'z', { readonly: true, label: 'pos z' })
+      folder.addBinding(cfg, 'size', { min: 0, max: 20, step: 0.5 })
+    }
+  }
+
+  resetAccumulation() {
+    if (!this.lightmapper) return
+    this.lightmapper.reset()
+    this.options.accumulating = true
   }
 
   onDebugTexturesChange() {
@@ -521,10 +539,14 @@ export class LightBakerExample {
   update() {
     requestAnimationFrame(() => this.update())
 
-    if (this.lightmapper && !this.options.pause) {
-      const samples = this.lightmapper.render()
+    if (this.lightmapper && this.options.accumulating) {
+      const totalSamples = this.lightmapper.render()
       if (CONFIG.debug) {
-        console.log('samples', samples)
+        console.log('samples', totalSamples)
+      }
+      if (totalSamples >= this.options.samples) {
+        this.options.accumulating = false
+        this.applyDenoise()
       }
     }
     this.controls.update()

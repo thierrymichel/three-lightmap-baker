@@ -17,7 +17,7 @@ export type BakeOptions = {
   casts: number
   samples: number
   filterMode?: TextureFilter
-  lights: LightDef[]
+  pointLights: LightDef[]
   ambientDistance: number
   nDotLStrength: number
   directLightEnabled: boolean
@@ -32,9 +32,9 @@ export type BakeOptions = {
 export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
   resolution: 1024,
   casts: 1,
-  samples: CONFIG.samples.nb,
+  samples: CONFIG.samples,
   filterMode: LinearFilter,
-  lights: [
+  pointLights: [
     {
       position: new Vector3(25.0, 30.0, 2.0),
       size: 3,
@@ -126,7 +126,7 @@ export async function bakeLightmap(
       resolution,
       casts: options.casts,
       filterMode: options.filterMode ?? LinearFilter,
-      lights: options.lights,
+      pointLights: options.pointLights,
       ambientDistance: options.ambientDistance,
       nDotLStrength: options.nDotLStrength,
       ambientLightEnabled: options.ambientLightEnabled,

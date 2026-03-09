@@ -20,7 +20,7 @@ export type LightmapperMaterialOptions = {
 
   casts: number
 
-  lights: LightDef[]
+  pointLights: LightDef[]
 
   sampleIndex: number
 
@@ -42,23 +42,23 @@ export class LightmapperMaterial extends ShaderMaterial {
 
     const lightPositions = Array.from(
       { length: MAX_LIGHTS },
-      (_, i) => options.lights[i]?.position ?? new Vector3(),
+      (_, i) => options.pointLights[i]?.position ?? new Vector3(),
     )
     const lightSizes = Array.from(
       { length: MAX_LIGHTS },
-      (_, i) => options.lights[i]?.size ?? 0,
+      (_, i) => options.pointLights[i]?.size ?? 0,
     )
     const lightIntensities = Array.from(
       { length: MAX_LIGHTS },
-      (_, i) => options.lights[i]?.intensity ?? 0,
+      (_, i) => options.pointLights[i]?.intensity ?? 0,
     )
     const lightColors = Array.from(
       { length: MAX_LIGHTS },
-      (_, i) => options.lights[i]?.color ?? new Color(0x000000),
+      (_, i) => options.pointLights[i]?.color ?? new Color(0x000000),
     )
     const lightDistances = Array.from(
       { length: MAX_LIGHTS },
-      (_, i) => options.lights[i]?.distance ?? 0,
+      (_, i) => options.pointLights[i]?.distance ?? 0,
     )
 
     super({
@@ -73,7 +73,7 @@ export class LightmapperMaterial extends ShaderMaterial {
         lightIntensities: { value: lightIntensities },
         lightColors: { value: lightColors },
         lightDistances: { value: lightDistances },
-        numLights: { value: Math.min(options.lights.length, MAX_LIGHTS) },
+        numLights: { value: Math.min(options.pointLights.length, MAX_LIGHTS) },
         previousFrame: { value: null },
         sampleIndex: { value: 0 },
         directLightEnabled: { value: options.directLightEnabled },

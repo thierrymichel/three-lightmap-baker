@@ -6,12 +6,12 @@ import type { Lightmapper } from './Lightmapper'
  * Useful for UI-driven bake with progress feedback.
  *
  * @param lightmapper - The lightmapper instance
- * @param samples - Number of samples to render (default: CONFIG.samples.nb)
+ * @param samples - Number of samples to render (default: CONFIG.samples)
  * @param onProgress - Callback with progress 0..1
  */
 export const renderSampleCount = async (
   lightmapper: Lightmapper,
-  samples: number = CONFIG.samples.nb,
+  samples: number = CONFIG.samples,
   onProgress?: (progress: number) => void,
 ) => {
   return new Promise<void>((resolve) => {

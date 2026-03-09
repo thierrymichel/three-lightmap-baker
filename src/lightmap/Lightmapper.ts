@@ -17,6 +17,7 @@ import {
   WebGLRenderTarget,
 } from 'three'
 import { FloatVertexAttributeTexture, type MeshBVH } from 'three-mesh-bvh'
+import { CONFIG } from '../CONFIG'
 import {
   type DenoiserOptions,
   defaultDenoiserOptions,
@@ -37,7 +38,7 @@ export type LightDef = {
 export type RaycastOptions = {
   resolution: number
   casts: number
-  lights: LightDef[]
+  pointLights: LightDef[]
   filterMode: TextureFilter
 
   directLightEnabled: boolean
@@ -49,11 +50,12 @@ export type RaycastOptions = {
   albedoEnabled: boolean
 }
 
-/** Lightmapper instance: render texture, render/denoise methods. */
+/** Lightmapper instance: render texture, render/denoise/reset methods. */
 export type Lightmapper = {
   renderTexture: WebGLRenderTarget
   render: () => number
   denoise: (options?: Partial<DenoiserOptions>) => void
+  reset: () => void
   denoiserOptions: DenoiserOptions
 }
 
@@ -86,7 +88,7 @@ export const generateLightmapper = (
     positions,
     normals,
     casts: options.casts,
-    lights: options.lights,
+    pointLights: options.pointLights,
     sampleIndex: 0,
     directLightEnabled: options.directLightEnabled,
     indirectLightEnabled: options.indirectLightEnabled,
@@ -157,10 +159,28 @@ export const generateLightmapper = (
 
   const denoise = (overrides?: Partial<DenoiserOptions>) => {
     const opts = { ...denoiserOptions, ...overrides }
-    if (!opts.enabled) return
+    if (!opts.enabled) {
+      isDenoised = false
+      return
+    }
 
     denoiseLightmap(renderer, readTarget, rtDenoised, opts)
     isDenoised = true
+
+    if (CONFIG.debug) {
+      console.log('denoised')
+    }
+  }
+
+  const reset = () => {
+    totalSamples = 0
+    isDenoised = false
+    for (const rt of [rtA, rtB, rtDenoised]) {
+      renderer.setRenderTarget(rt)
+      renderer.setClearColor(0x000000, 0)
+      renderer.clear()
+    }
+    renderer.setRenderTarget(null)
   }
 
   renderer.setRenderTarget(null)
@@ -171,6 +191,7 @@ export const generateLightmapper = (
     },
     render,
     denoise,
+    reset,
     denoiserOptions,
   }
 }

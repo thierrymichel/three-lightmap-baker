@@ -22,7 +22,7 @@ const { values: args } = parseArgs({
     samples: {
       type: 'string',
       short: 's',
-      default: CONFIG.samples.nb.toString(),
+      default: CONFIG.samples.toString(),
     },
     casts: { type: 'string', default: '2' },
     timeout: { type: 'string', default: '300000' },
@@ -100,7 +100,7 @@ async function main() {
   const params = new URLSearchParams({
     input: args.input as string,
     resolution: args.resolution ?? '1024',
-    samples: args.samples ?? CONFIG.samples.nb,
+    samples: args.samples ?? CONFIG.samples,
     casts: args.casts ?? '2',
   })
 

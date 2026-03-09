@@ -16,9 +16,9 @@ export type DenoiserOptions = {
 
 export const defaultDenoiserOptions: DenoiserOptions = {
   enabled: true,
-  kernelRadius: 2,
+  kernelRadius: 3,
   spatialSigma: 2.0,
-  rangeSigma: 0.1,
+  rangeSigma: 0.5,
 }
 
 const bilateralFilterShader = {

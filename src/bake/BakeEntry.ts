@@ -38,18 +38,18 @@ function parseParams(): {
   samples: number
   casts: number
   filterMode: 'linear' | 'nearest'
-  lights: LightDef[]
+  pointLights: LightDef[]
 } {
   const params = new URLSearchParams(location.search)
 
   const input = params.get('input')
   if (!input) throw new Error('Missing required "input" URL param')
 
-  let lights: LightDef[] = defaultBakeOptions.lights
+  let pointLights: LightDef[] = defaultBakeOptions.pointLights
   const lightsParam = params.get('lights')
   if (lightsParam) {
     const parsed = JSON.parse(lightsParam)
-    lights = parsed.map(
+    pointLights = parsed.map(
       (l: {
         position: number[]
         size: number
@@ -74,7 +74,7 @@ function parseParams(): {
     samples: Number(params.get('samples') ?? defaultBakeOptions.samples),
     casts: Number(params.get('casts') ?? defaultBakeOptions.casts),
     filterMode: (params.get('filterMode') as 'linear' | 'nearest') ?? 'linear',
-    lights,
+    pointLights,
   }
 }
 
@@ -84,7 +84,10 @@ async function main() {
   if (CONFIG.debug) {
     console.log(
       '[bake-entry] Config:',
-      JSON.stringify({ ...config, lights: `${config.lights.length} light(s)` }),
+      JSON.stringify({
+        ...config,
+        pointLights: `${config.pointLights.length} light(s)`,
+      }),
     )
   }
 
@@ -103,7 +106,7 @@ async function main() {
     casts: config.casts,
     samples: config.samples,
     filterMode: config.filterMode === 'nearest' ? NearestFilter : LinearFilter,
-    lights: config.lights,
+    pointLights: config.pointLights,
     ambientDistance: defaultBakeOptions.ambientDistance,
     nDotLStrength: defaultBakeOptions.nDotLStrength,
     directLightEnabled: defaultBakeOptions.directLightEnabled,
