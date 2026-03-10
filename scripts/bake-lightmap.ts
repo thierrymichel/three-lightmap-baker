@@ -25,6 +25,7 @@ const { values: args } = parseArgs({
       default: CONFIG.samples.toString(),
     },
     casts: { type: 'string', default: '2' },
+    groups: { type: 'string', default: '1' },
     timeout: { type: 'string', default: '300000' },
     gpu: { type: 'boolean', default: false },
     chromium: {
@@ -36,7 +37,7 @@ const { values: args } = parseArgs({
 
 if (!args.input || !args.output) {
   console.error(
-    'Usage: npx tsx scripts/bake-lightmap.ts --input <file.glb> --output <lightmap.png> [--resolution 1024] [--samples 64] [--casts 1] [--gpu] [--chromium]',
+    'Usage: npx tsx scripts/bake-lightmap.ts --input <file.glb> --output <lightmap.png> [--resolution 1024] [--samples 64] [--casts 1] [--groups 1] [--gpu] [--chromium]',
   )
   process.exit(1)
 }
@@ -102,6 +103,7 @@ async function main() {
     resolution: args.resolution ?? '1024',
     samples: args.samples ?? CONFIG.samples,
     casts: args.casts ?? '2',
+    atlasGroups: args.groups ?? '1',
   })
 
   const url = `${baseUrl}/bake.html?${params}`
@@ -120,23 +122,34 @@ async function main() {
     throw new Error(`Bake failed: ${error}`)
   }
 
-  const dataUrl = await page.evaluate(() => window.__bakeResult)
+  const rawResult = await page.evaluate(() => window.__bakeResult)
 
-  if (!dataUrl) {
+  if (!rawResult) {
     throw new Error('Bake produced no result')
   }
 
-  const base64 = dataUrl.replace(/^data:image\/png;base64,/, '')
   const outputPath = path.resolve(args.output as string)
+  const ext = path.extname(outputPath)
+  const baseName = outputPath.slice(0, -ext.length)
 
-  await writeFile(outputPath, Buffer.from(base64, 'base64'))
-  console.log(`Lightmap saved to ${outputPath}`)
+  const isJsonArray = rawResult.startsWith('[')
+  if (isJsonArray) {
+    const dataUrls: string[] = JSON.parse(rawResult)
+    for (let i = 0; i < dataUrls.length; i++) {
+      const base64 = dataUrls[i].replace(/^data:image\/png;base64,/, '')
+      const groupPath = `${baseName}-${i}${ext}`
+      await writeFile(groupPath, Buffer.from(base64, 'base64'))
+      console.log(`Lightmap group ${i} saved to ${groupPath}`)
+    }
+  } else {
+    const base64 = rawResult.replace(/^data:image\/png;base64,/, '')
+    await writeFile(outputPath, Buffer.from(base64, 'base64'))
+    console.log(`Lightmap saved to ${outputPath}`)
+  }
 
   const renderDataUrl = await page.evaluate(() => window.__bakeRender)
   if (renderDataUrl) {
     const renderBase64 = renderDataUrl.replace(/^data:image\/png;base64,/, '')
-    const ext = path.extname(outputPath)
-    const baseName = outputPath.slice(0, -ext.length)
     const renderPath = `${baseName}-render${ext}`
 
     await writeFile(renderPath, Buffer.from(renderBase64, 'base64'))

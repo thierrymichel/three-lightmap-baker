@@ -9,6 +9,7 @@ import type { LightDef } from '../lightmap/Lightmapper'
 import { generateLightmapper } from '../lightmap/Lightmapper'
 import { mergeGeometry } from '../utils/GeometryUtils'
 import { LoadGLTF } from '../utils/LoaderUtils'
+import { splitMeshGroups } from '../utils/MeshGroupUtils'
 import { prepareScene } from '../utils/SceneUtils'
 
 /** Options for the headless bake pipeline. */
@@ -26,6 +27,7 @@ export type BakeOptions = {
   ambientLightEnabled: boolean
   bounceEnabled: boolean
   albedoEnabled: boolean
+  atlasGroups?: number
   denoise?: Partial<DenoiserOptions>
   onProgress?: (sample: number, total: number) => void
 }
@@ -58,24 +60,34 @@ export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
   ambientLightEnabled: true,
   bounceEnabled: true,
   albedoEnabled: true,
+  atlasGroups: 1,
   denoise: { enabled: true },
 }
 
-/** Result of a bake: RGBA pixels, scene, meshes, and the lightmap render target. */
-export type BakeResult = {
+/** Bake result for a single atlas group. */
+export type BakeGroupResult = {
+  meshes: Mesh[]
   pixels: Uint8Array
+  renderTarget: WebGLRenderTarget
+}
+
+/** Result of a bake: grouped lightmaps, scene, and all meshes. */
+export type BakeResult = {
+  groups: BakeGroupResult[]
   gltfScene: Object3D
   meshes: Mesh[]
-  renderTarget: WebGLRenderTarget
 }
 
 /**
  * Bakes a lightmap for a GLB model: loads, UV-unwraps, renders atlas, builds BVH,
  * accumulates samples, optionally denoises, and returns RGBA pixels.
  *
+ * When `atlasGroups > 1`, meshes are split into groups by surface area for
+ * higher texel density. Bounce is automatically disabled in multi-atlas mode.
+ *
  * @param renderer - WebGL renderer (preserveDrawingBuffer recommended for readPixels)
  * @param options - Bake configuration
- * @returns BakeResult with pixels, scene, meshes, and render target
+ * @returns BakeResult with per-group pixels, scene, meshes, and render targets
  * @throws If no meshes found in the model
  */
 export async function bakeLightmap(
@@ -83,6 +95,7 @@ export async function bakeLightmap(
   options: BakeOptions,
 ): Promise<BakeResult> {
   const { resolution, samples } = options
+  const atlasGroups = options.atlasGroups ?? 1
 
   const gltf = await LoadGLTF(options.modelUrl)
   const meshes: Mesh[] = []
@@ -96,20 +109,22 @@ export async function bakeLightmap(
     throw new Error(`No meshes found in ${options.modelUrl}`)
   }
 
-  if (CONFIG.debug) {
-    console.log(`[bake] ${meshes.length} meshes loaded`)
-  }
-
   const { scaleFactor } = prepareScene(gltf.scene)
 
-  await generateAtlas(meshes)
+  const meshGroupsList = splitMeshGroups(meshes, atlasGroups)
+  const isMultiAtlas = meshGroupsList.length > 1
+
   if (CONFIG.debug) {
-    console.log('[bake] Atlas UV1 generated')
+    console.log(
+      `[bake] ${meshes.length} meshes → ${meshGroupsList.length} group(s)`,
+    )
   }
 
-  const atlas = renderAtlas(renderer, meshes, resolution, true)
+  for (const groupMeshes of meshGroupsList) {
+    await generateAtlas(groupMeshes)
+  }
   if (CONFIG.debug) {
-    console.log('[bake] Position/normal textures rendered')
+    console.log('[bake] Atlas UV1 generated')
   }
 
   const mergedGeometry = mergeGeometry(meshes)
@@ -126,34 +141,49 @@ export async function bakeLightmap(
     distance: l.distance * s,
   }))
 
-  const lightmapper = generateLightmapper(
-    renderer,
-    atlas.positionTexture,
-    atlas.normalTexture,
-    atlas.albedoTexture,
-    bvh,
-    {
-      resolution,
-      casts: options.casts,
-      filterMode: options.filterMode ?? LinearFilter,
-      pointLights: scaledLights,
-      ambientDistance: options.ambientDistance * s,
-      nDotLStrength: options.nDotLStrength,
-      ambientLightEnabled: options.ambientLightEnabled,
-      directLightEnabled: options.directLightEnabled,
-      indirectLightEnabled: options.indirectLightEnabled,
-      bounceEnabled: options.bounceEnabled,
-      albedoEnabled: options.albedoEnabled,
-      rayEpsilon: 0.001 * s,
-    },
-  )
+  const bounceEnabled = options.bounceEnabled && !isMultiAtlas
+  if (isMultiAtlas && options.bounceEnabled && CONFIG.debug) {
+    console.warn(
+      '[bake] Bounce disabled in multi-atlas mode (cross-group lookup unsupported)',
+    )
+  }
+
+  const lightmappers = meshGroupsList.map((groupMeshes) => {
+    const atlas = renderAtlas(renderer, groupMeshes, resolution, true)
+    return {
+      meshes: groupMeshes,
+      lightmapper: generateLightmapper(
+        renderer,
+        atlas.positionTexture,
+        atlas.normalTexture,
+        atlas.albedoTexture,
+        bvh,
+        {
+          resolution,
+          casts: options.casts,
+          filterMode: options.filterMode ?? LinearFilter,
+          pointLights: scaledLights,
+          ambientDistance: options.ambientDistance * s,
+          nDotLStrength: options.nDotLStrength,
+          ambientLightEnabled: options.ambientLightEnabled,
+          directLightEnabled: options.directLightEnabled,
+          indirectLightEnabled: options.indirectLightEnabled,
+          bounceEnabled,
+          albedoEnabled: options.albedoEnabled,
+          rayEpsilon: 0.001 * s,
+        },
+      ),
+    }
+  })
 
   if (CONFIG.debug) {
     console.log(`[bake] Rendering ${samples} samples...`)
   }
 
   for (let i = 0; i < samples; i++) {
-    lightmapper.render()
+    for (const { lightmapper } of lightmappers) {
+      lightmapper.render()
+    }
     options.onProgress?.(i + 1, samples)
   }
 
@@ -162,67 +192,53 @@ export async function bakeLightmap(
   }
 
   if (options.denoise?.enabled !== false) {
-    lightmapper.denoise({ enabled: true, ...options.denoise })
+    for (const { lightmapper } of lightmappers) {
+      lightmapper.denoise({ enabled: true, ...options.denoise })
+    }
     if (CONFIG.debug) {
       console.log('[bake] Denoised')
     }
   }
 
-  const rt = lightmapper.renderTexture
-  const pixels = new Float32Array(resolution * resolution * 4)
+  const groups: BakeGroupResult[] = lightmappers.map(
+    ({ meshes: groupMeshes, lightmapper }, gi) => {
+      const rt = lightmapper.renderTexture
+      const pixels = new Float32Array(resolution * resolution * 4)
 
-  if (CONFIG.debug) {
-    console.log('[bake] Reading pixels')
-    console.time('[bake] Reading pixels')
-  }
+      renderer.readRenderTargetPixels(rt, 0, 0, resolution, resolution, pixels)
 
-  renderer.readRenderTargetPixels(rt, 0, 0, resolution, resolution, pixels)
+      if (CONFIG.debug) {
+        let min = Infinity
+        let max = -Infinity
+        let nonZero = 0
+        for (let i = 0; i < pixels.length; i++) {
+          const v = pixels[i]
+          if (v < min) min = v
+          if (v > max) max = v
+          if (v > 0) nonZero++
+        }
+        const prefix = isMultiAtlas ? `[bake] Group ${gi}` : '[bake]'
+        console.log(`${prefix} Pixels debug:`, {
+          min,
+          max,
+          nonZero,
+          total: pixels.length,
+        })
+      }
 
-  if (CONFIG.debug) {
-    console.timeEnd('[bake] Reading pixels')
-  }
+      const output = new Uint8Array(resolution * resolution * 4)
+      for (let i = 0; i < pixels.length; i++) {
+        output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
+      }
 
-  if (CONFIG.debug) {
-    let min = Infinity,
-      max = -Infinity,
-      nonZero = 0
-    for (let i = 0; i < pixels.length; i++) {
-      const v = pixels[i]
-      if (v < min) min = v
-      if (v > max) max = v
-      if (v > 0) nonZero++
-    }
-    console.log('[bake] Pixels debug:', {
-      min,
-      max,
-      nonZero,
-      total: pixels.length,
-    })
-
-    const buckets = [0, 0, 0, 0, 0] // 0-0.2, 0.2-0.4, 0.4-0.6, 0.6-0.8, 0.8-1
-    for (let i = 0; i < pixels.length; i += 4) {
-      const v = (pixels[i] + pixels[i + 1] + pixels[i + 2]) / 3
-      const b = Math.min(4, Math.floor(v * 5))
-      buckets[b]++
-    }
-    console.log('[bake] Value distribution:', buckets)
-  }
-
-  const output = new Uint8Array(resolution * resolution * 4)
-
-  if (CONFIG.debug) {
-    console.log('[bake] Converting to Uint8Array')
-  }
-
-  for (let i = 0; i < pixels.length; i++) {
-    output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
-  }
+      return { meshes: groupMeshes, pixels: output, renderTarget: rt }
+    },
+  )
 
   return {
-    pixels: output,
+    groups,
     gltfScene: gltf.scene,
     meshes,
-    renderTarget: rt,
   }
 }
 

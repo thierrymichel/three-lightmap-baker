@@ -1,4 +1,4 @@
-import type { Texture, WebGLRenderTarget } from 'three'
+import type { Texture } from 'three'
 import {
   Box3,
   Color,
@@ -28,12 +28,20 @@ import type { Lightmapper, RaycastOptions } from './lightmap/Lightmapper'
 import { generateLightmapper } from './lightmap/Lightmapper'
 import { mergeGeometry } from './utils/GeometryUtils'
 import { LoadGLTF } from './utils/LoaderUtils'
+import { splitMeshGroups } from './utils/MeshGroupUtils'
 import { prepareScene } from './utils/SceneUtils'
 
 type PointLightConfig = {
   position: Vector3
   enabled: boolean
   size: number
+}
+
+type LightmapGroup = {
+  meshes: Mesh[]
+  lightmapper: Lightmapper
+  positionTexture: Texture
+  normalTexture: Texture
 }
 
 const defaultPointLights: PointLightConfig[] = CONFIG.pointLights.map(
@@ -85,13 +93,16 @@ export class LightBakerExample {
   uvDebugTexture: Texture
   positionTexture: Texture
   normalTexture: Texture
-  lightmapTexture: WebGLRenderTarget
 
   debugPosition: Mesh
   debugNormals: Mesh
   debugLightmap: Mesh
 
-  lightmapper: Lightmapper | null
+  lightmapGroups: LightmapGroup[] = []
+  meshToGroup: Map<Mesh, LightmapGroup> = new Map()
+  meshGroupAssignment: Mesh[][] = []
+  lastAtlasGroups = 0
+
   scaleFactor = 1
 
   pane: Pane
@@ -102,6 +113,7 @@ export class LightBakerExample {
     lightMapSize: CONFIG.lightMapSize,
     samples: CONFIG.samples,
     casts: 1,
+    atlasGroups: CONFIG.atlasGroups,
     filterMode: 'linear',
     directLightEnabled: true,
     indirectLightEnabled: true,
@@ -194,6 +206,12 @@ export class LightBakerExample {
       min: 1,
       step: 1,
     })
+    lightMapFolder.addBinding(this.options, 'atlasGroups', {
+      label: 'atlas groups',
+      max: 8,
+      min: 1,
+      step: 1,
+    })
     lightMapFolder
       .addBinding(this.options, 'filterMode', {
         options: Filter,
@@ -268,8 +286,11 @@ export class LightBakerExample {
       .addButton({
         title: 'Reset',
       })
-      .on('click', () => {
-        this.generateLightmap()
+      .on('click', async () => {
+        if (this.options.atlasGroups !== this.lastAtlasGroups) {
+          await this.updateAtlasTextures()
+        }
+        await this.generateLightmap()
       })
 
     this.initialSetup()
@@ -291,7 +312,9 @@ export class LightBakerExample {
     }
 
     this.currentModelMeshes = []
-    this.lightmapper = null
+    this.lightmapGroups = []
+    this.meshToGroup = new Map()
+    this.meshGroupAssignment = []
 
     const gltf = await LoadGLTF(this.options.model)
 
@@ -337,28 +360,48 @@ export class LightBakerExample {
 
     await this.generateLightmap()
 
-    this.lightmapper.render()
+    for (const group of this.lightmapGroups) {
+      group.lightmapper.render()
+    }
   }
 
   async updateAtlasTextures() {
-    await generateAtlas(this.currentModelMeshes)
+    this.meshGroupAssignment = splitMeshGroups(
+      this.currentModelMeshes,
+      this.options.atlasGroups,
+    )
+    this.lastAtlasGroups = this.options.atlasGroups
+
+    for (const groupMeshes of this.meshGroupAssignment) {
+      await generateAtlas(groupMeshes)
+    }
+
+    if (CONFIG.debug) {
+      console.log(
+        `[atlas] ${this.currentModelMeshes.length} meshes → ${this.meshGroupAssignment.length} group(s)`,
+      )
+    }
   }
 
   async generateLightmap() {
     const resolution = this.options.lightMapSize
+    const groups =
+      this.meshGroupAssignment.length > 0
+        ? this.meshGroupAssignment
+        : [this.currentModelMeshes]
 
-    const atlas = renderAtlas(
-      this.renderer,
-      this.currentModelMeshes,
-      resolution,
-      true,
+    this.lightmapGroups = []
+    this.meshToGroup = new Map()
+
+    const atlases = groups.map((groupMeshes) =>
+      renderAtlas(this.renderer, groupMeshes, resolution, true),
     )
-    this.positionTexture = atlas.positionTexture
-    this.normalTexture = atlas.normalTexture
+
+    this.positionTexture = atlases[0].positionTexture
+    this.normalTexture = atlases[0].normalTexture
 
     this.update()
 
-    // Comptage des attributs de géométrie par occurrence (debug)
     if (CONFIG.debug) {
       const attrCounts: Record<string, number> = {}
 
@@ -396,33 +439,59 @@ export class LightBakerExample {
         distance: this.options.lightRadius * s,
       }))
 
-    const lightmapperOptions: RaycastOptions = {
-      resolution: resolution,
-      casts: this.options.casts,
-      filterMode:
-        this.options.filterMode === 'linear' ? LinearFilter : NearestFilter,
-      pointLights,
-      ambientDistance: this.options.ambientDistance * s,
-      nDotLStrength: this.options.nDotLStrength,
-      ambientLightEnabled: this.options.ambientLightEnabled,
-      directLightEnabled: this.options.directLightEnabled,
-      indirectLightEnabled: this.options.indirectLightEnabled,
-      bounceEnabled: this.options.bounce,
-      albedoEnabled: this.options.albedo,
-      rayEpsilon: 0.001 * s,
+    const isMultiAtlas = groups.length > 1
+    if (isMultiAtlas && this.options.bounce && CONFIG.debug) {
+      console.warn(
+        '[multi-atlas] Bounce disabled (cross-group lookup unsupported)',
+      )
     }
 
-    this.lightmapper = await generateLightmapper(
-      this.renderer,
-      atlas.positionTexture,
-      atlas.normalTexture,
-      atlas.albedoTexture,
-      bvh,
-      lightmapperOptions,
-    )
-    this.lightmapTexture = this.lightmapper.renderTexture
-    this.options.accumulating = true
+    for (let gi = 0; gi < groups.length; gi++) {
+      const lightmapperOptions: RaycastOptions = {
+        resolution,
+        casts: this.options.casts,
+        filterMode:
+          this.options.filterMode === 'linear' ? LinearFilter : NearestFilter,
+        pointLights,
+        ambientDistance: this.options.ambientDistance * s,
+        nDotLStrength: this.options.nDotLStrength,
+        ambientLightEnabled: this.options.ambientLightEnabled,
+        directLightEnabled: this.options.directLightEnabled,
+        indirectLightEnabled: this.options.indirectLightEnabled,
+        bounceEnabled: this.options.bounce && !isMultiAtlas,
+        albedoEnabled: this.options.albedo,
+        rayEpsilon: 0.001 * s,
+      }
 
+      const lightmapper = generateLightmapper(
+        this.renderer,
+        atlases[gi].positionTexture,
+        atlases[gi].normalTexture,
+        atlases[gi].albedoTexture,
+        bvh,
+        lightmapperOptions,
+      )
+
+      const group: LightmapGroup = {
+        meshes: groups[gi],
+        lightmapper,
+        positionTexture: atlases[gi].positionTexture,
+        normalTexture: atlases[gi].normalTexture,
+      }
+      this.lightmapGroups.push(group)
+      for (const mesh of groups[gi]) {
+        this.meshToGroup.set(mesh, group)
+      }
+    }
+
+    if (CONFIG.debug && isMultiAtlas) {
+      console.log(
+        `[multi-atlas] ${groups.length} groups:`,
+        groups.map((g, i) => `group ${i}: ${g.length} meshes`).join(', '),
+      )
+    }
+
+    this.options.accumulating = true
     this.onRenderModeChange()
   }
 
@@ -444,17 +513,16 @@ export class LightBakerExample {
   }
 
   applyDenoise() {
-    if (!this.lightmapper) {
-      return
-    }
+    if (this.lightmapGroups.length === 0) return
 
-    this.lightmapper.denoise({
-      enabled: this.options.denoise,
-      kernelRadius: this.options.denoiseKernelRadius,
-      spatialSigma: this.options.denoiseSpatialSigma,
-      rangeSigma: this.options.denoiseRangeSigma,
-    })
-    this.lightmapTexture = this.lightmapper.renderTexture
+    for (const group of this.lightmapGroups) {
+      group.lightmapper.denoise({
+        enabled: this.options.denoise,
+        kernelRadius: this.options.denoiseKernelRadius,
+        spatialSigma: this.options.denoiseSpatialSigma,
+        rangeSigma: this.options.denoiseRangeSigma,
+      })
+    }
     this.onRenderModeChange()
   }
 
@@ -487,8 +555,10 @@ export class LightBakerExample {
   }
 
   resetAccumulation() {
-    if (!this.lightmapper) return
-    this.lightmapper.reset()
+    if (this.lightmapGroups.length === 0) return
+    for (const group of this.lightmapGroups) {
+      group.lightmapper.reset()
+    }
     this.options.accumulating = true
   }
 
@@ -505,7 +575,7 @@ export class LightBakerExample {
       this.scene.remove(this.debugLightmap)
     }
 
-    if (this.options.debugTextures) {
+    if (this.options.debugTextures && this.lightmapGroups.length > 0) {
       this.debugPosition = this.createDebugTexture(
         this.positionTexture,
         new Vector3(0, 10, 0),
@@ -515,7 +585,7 @@ export class LightBakerExample {
         new Vector3(12, 10, 0),
       )
       this.debugLightmap = this.createDebugTexture(
-        this.lightmapTexture.texture,
+        this.lightmapGroups[0].lightmapper.renderTexture.texture,
         new Vector3(24, 10, 0),
       )
     }
@@ -534,6 +604,8 @@ export class LightBakerExample {
         mat.map = null
 
         const mode = this.options.renderMode
+        const group = this.meshToGroup.get(mesh)
+
         if (mode === 'standard') {
           mat.lightMap = null
           mat.map = mat._originalMap
@@ -544,15 +616,17 @@ export class LightBakerExample {
           mode === 'lightmap' ||
           mode === 'beauty'
         ) {
-          mat.lightMap =
-            mode === 'positions'
-              ? this.positionTexture
-              : mode === 'normals'
-                ? this.normalTexture
-                : mode === 'uv'
-                  ? this.uvDebugTexture
-                  : this.lightmapTexture.texture
-          mat.lightMap.channel = 1
+          if (mode === 'positions') {
+            mat.lightMap =
+              group?.positionTexture ?? this.positionTexture ?? null
+          } else if (mode === 'normals') {
+            mat.lightMap = group?.normalTexture ?? this.normalTexture ?? null
+          } else if (mode === 'uv') {
+            mat.lightMap = this.uvDebugTexture
+          } else {
+            mat.lightMap = group?.lightmapper.renderTexture.texture ?? null
+          }
+          if (mat.lightMap) mat.lightMap.channel = 1
           if (mode === 'beauty') mat.map = mat._originalMap
         }
 
@@ -577,8 +651,11 @@ export class LightBakerExample {
   update() {
     requestAnimationFrame(() => this.update())
 
-    if (this.lightmapper && this.options.accumulating) {
-      const totalSamples = this.lightmapper.render()
+    if (this.lightmapGroups.length > 0 && this.options.accumulating) {
+      let totalSamples = 0
+      for (const group of this.lightmapGroups) {
+        totalSamples = group.lightmapper.render()
+      }
       if (CONFIG.debug) {
         console.log('samples', totalSamples)
       }

@@ -1,7 +1,9 @@
 /** Global configuration for the demo and bake pipeline. */
 export const CONFIG = {
   /** Default model for the interactive demo. */
-  model: 'dressing_x1.glb',
+  // model: 'dressing_x1.glb',
+  // model: 'dressing_x5_no_uv1.glb',
+  model: 'ile_energie.glb',
   /** Default render mode: 'standard' | 'positions' | 'normals' | 'uv' | 'lightmap' | 'beauty'. */
   renderMode: 'beauty',
   /** Lightmap resolution (demo). */
@@ -10,6 +12,8 @@ export const CONFIG = {
   maxLights: 4,
   /** Number of samples (demo + headless bake). */
   samples: 24,
+  /** Number of atlas groups (1 = single atlas, >1 = multi-atlas with bounce disabled). */
+  atlasGroups: 1,
   /** Default point lights for the interactive demo. */
   pointLights: [
     { position: [20.0, 30.0, -5.0] as const, enabled: true, size: 3 },

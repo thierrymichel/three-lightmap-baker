@@ -37,6 +37,7 @@ function parseParams(): {
   resolution: number
   samples: number
   casts: number
+  atlasGroups: number
   filterMode: 'linear' | 'nearest'
   pointLights: LightDef[]
 } {
@@ -73,6 +74,9 @@ function parseParams(): {
     ),
     samples: Number(params.get('samples') ?? defaultBakeOptions.samples),
     casts: Number(params.get('casts') ?? defaultBakeOptions.casts),
+    atlasGroups: Number(
+      params.get('atlasGroups') ?? defaultBakeOptions.atlasGroups,
+    ),
     filterMode: (params.get('filterMode') as 'linear' | 'nearest') ?? 'linear',
     pointLights,
   }
@@ -105,6 +109,7 @@ async function main() {
     resolution: config.resolution,
     casts: config.casts,
     samples: config.samples,
+    atlasGroups: config.atlasGroups,
     filterMode: config.filterMode === 'nearest' ? NearestFilter : LinearFilter,
     pointLights: config.pointLights,
     ambientDistance: defaultBakeOptions.ambientDistance,
@@ -126,11 +131,19 @@ async function main() {
     console.timeEnd('[bake-entry] bakeLightmap')
   }
 
-  window.__bakeResult = pixelsToDataURL(
-    result.pixels,
-    config.resolution,
-    config.resolution,
-  )
+  if (result.groups.length === 1) {
+    window.__bakeResult = pixelsToDataURL(
+      result.groups[0].pixels,
+      config.resolution,
+      config.resolution,
+    )
+  } else {
+    window.__bakeResult = JSON.stringify(
+      result.groups.map((g) =>
+        pixelsToDataURL(g.pixels, config.resolution, config.resolution),
+      ),
+    )
+  }
 
   // Beauty render
   const renderWidth = 1920
@@ -142,13 +155,15 @@ async function main() {
   scene.background = new Color(0x74b9ff)
   scene.add(result.gltfScene)
 
-  for (const mesh of result.meshes) {
-    // biome-ignore lint/suspicious/noExplicitAny: apply lightmap to materials
-    const mat = mesh.material as any
-    mat.lightMap = result.renderTarget.texture
-    mat.lightMap.channel = 1
-    mat.lightMapIntensity = 1
-    mat.needsUpdate = true
+  for (const group of result.groups) {
+    for (const mesh of group.meshes) {
+      // biome-ignore lint/suspicious/noExplicitAny: apply lightmap to materials
+      const mat = mesh.material as any
+      mat.lightMap = group.renderTarget.texture
+      mat.lightMap.channel = 1
+      mat.lightMapIntensity = 1
+      mat.needsUpdate = true
+    }
   }
 
   const box = new Box3().setFromObject(result.gltfScene)
