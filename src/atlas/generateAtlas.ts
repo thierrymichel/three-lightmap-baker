@@ -49,7 +49,11 @@ export const generateAtlas = async (meshes: Mesh[]) => {
   const geometry = meshes.map((mesh) => mesh.geometry)
 
   // We can pass in options to the unwrapper
-  // unwrapper.packOptions.padding = 1;
+  // unwrapper.packOptions.resolution = 2048 // matcher la lightmap
+  // unwrapper.packOptions.padding = 2 // anti-bleeding
+  // unwrapper.packOptions.texelsPerUnit = 2 // densité uniforme (à ajuster)
+  // unwrapper.packOptions.bruteForce = true // packing optimal (plus lent)
+  // unwrapper.chartOptions.useInputMeshUvs = true // réutiliser les UV existants
 
   await unwrapper.packAtlas(geometry, 'uv2', 'uv')
 
