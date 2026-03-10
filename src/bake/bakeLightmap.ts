@@ -101,7 +101,7 @@ export async function bakeLightmap(
 
   await generateAtlas(meshes)
   if (CONFIG.debug) {
-    console.log('[bake] Atlas UV2 generated')
+    console.log('[bake] Atlas UV1 generated')
   }
 
   const atlas = renderAtlas(renderer, meshes, resolution, true)

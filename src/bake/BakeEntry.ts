@@ -146,7 +146,7 @@ async function main() {
     // biome-ignore lint/suspicious/noExplicitAny: apply lightmap to materials
     const mat = mesh.material as any
     mat.lightMap = result.renderTarget.texture
-    mat.lightMap.channel = 2
+    mat.lightMap.channel = 1
     mat.lightMapIntensity = 1
     mat.needsUpdate = true
   }

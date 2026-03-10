@@ -31,7 +31,7 @@ export type LightmapperMaterialOptions = {
   nDotLStrength: number
   bounceEnabled: boolean
   albedoEnabled: boolean
-  uv2Attr: DataTexture
+  uv1Attr: DataTexture
   albedoAtlas: Texture
 }
 
@@ -83,7 +83,7 @@ export class LightmapperMaterial extends ShaderMaterial {
         nDotLStrength: { value: options.nDotLStrength },
         bounceEnabled: { value: options.bounceEnabled },
         albedoEnabled: { value: options.albedoEnabled },
-        uv2Attr: { value: options.uv2Attr },
+        uv1Attr: { value: options.uv1Attr },
         albedoAtlas: { value: options.albedoAtlas },
       },
 
@@ -123,7 +123,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform float nDotLStrength;
                 uniform bool bounceEnabled;
                 uniform bool albedoEnabled;
-                uniform sampler2D uv2Attr;
+                uniform sampler2D uv1Attr;
                 uniform sampler2D albedoAtlas;
                 uniform sampler2D previousFrame;
 
@@ -224,7 +224,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                                 if(!hit) {
                                     totalIndirectLight += vec3(1.0);
                                 } else if(bounceEnabled && sampleIndex > 0) {
-                                    vec2 hitUV = textureSampleBarycoord(uv2Attr, barycoord, faceIndices.xyz).xy;
+                                    vec2 hitUV = textureSampleBarycoord(uv1Attr, barycoord, faceIndices.xyz).xy;
                                     vec3 hitAlbedo = albedoEnabled ? texture2D(albedoAtlas, hitUV).rgb : vec3(1.0);
                                     totalIndirectLight += texture2D(previousFrame, hitUV).rgb * hitAlbedo;
                                 }

@@ -40,8 +40,8 @@ export const loadXAtlasThree = async (
 }
 
 /**
- * Generates UV2 atlas for the given meshes using XAtlas.
- * Writes the result to each mesh geometry's uv2 attribute.
+ * Generates UV atlas for the given meshes using XAtlas.
+ * Writes the result to each mesh geometry's uv1 attribute (TEXCOORD_1).
  *
  * @param meshes - Meshes to unwrap (must have uv attribute)
  */
@@ -51,6 +51,12 @@ export const generateAtlas = async (meshes: Mesh[]) => {
   // We can pass in options to the unwrapper
   // unwrapper.packOptions.padding = 1;
 
-  // Write the shared UVs the uv2 attribute
   await unwrapper.packAtlas(geometry, 'uv2', 'uv')
+
+  // Rename uv2 → uv1 to align with TEXCOORD_1 (glTF convention)
+  for (const geo of geometry) {
+    const attr = geo.getAttribute('uv2')
+    geo.deleteAttribute('uv2')
+    geo.setAttribute('uv1', attr)
+  }
 }

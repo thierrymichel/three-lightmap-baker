@@ -119,8 +119,8 @@ Ajout d'un rebond de lumière indirecte via l'accumulation progressive. Quand un
 1. À chaque sample, le shader lance des rays hémisphère depuis chaque texel
 2. Si le ray ne touche rien → contribution sky `vec3(1.0)` (inchangé)
 3. Si le ray touche une surface et `bounceEnabled` :
-   - Interpolation des coordonnées UV2 au point d'impact via les barycentriques (`textureSampleBarycoord`)
-   - Échantillonnage de `previousFrame` (la lightmap accumulée) à ces UV2
+   - Interpolation des coordonnées UV1 au point d'impact via les barycentriques (`textureSampleBarycoord`)
+   - Échantillonnage de `previousFrame` (la lightmap accumulée) à ces UV1
    - La couleur récupérée est ajoutée comme contribution indirecte
 
 ### Convergence naturelle multi-bounce
@@ -133,7 +133,7 @@ Pas besoin de paramètre "nombre de bounces" :
 
 ### Implémentation technique
 
-- **Texture UV2** : `FloatVertexAttributeTexture` (de three-mesh-bvh) créée à partir de `bvh.geometry.attributes.uv2` — les vertex indices retournés par `bvhIntersectFirstHit` (`faceIndices.xyz`) indexent directement cette texture
+- **Texture UV1** : `FloatVertexAttributeTexture` (de three-mesh-bvh) créée à partir de `bvh.geometry.attributes.uv1` — les vertex indices retournés par `bvhIntersectFirstHit` (`faceIndices.xyz`) indexent directement cette texture
 - **`textureSampleBarycoord()`** : helper GLSL déjà fourni par three-mesh-bvh (`common_functions`), fait l'interpolation barycentrique pour nous
 - **Double usage de `previousFrame`** : sert à la fois pour l'accumulation ping-pong (running average) et comme source de bounce — pas de render target supplémentaire
 
@@ -149,7 +149,7 @@ Pas besoin de paramètre "nombre de bounces" :
 
 ## Albedo atlas — color bleeding et absorption d'énergie
 
-La texture diffuse (`map`) de chaque mesh est rendue dans l'espace UV2 pour créer un **atlas albedo**, au même titre que les textures de position et de normales. Les bounces multiplient la lumière rebondie par l'albedo de la surface impactée.
+La texture diffuse (`map`) de chaque mesh est rendue dans l'espace UV1 pour créer un **atlas albedo**, au même titre que les textures de position et de normales. Les bounces multiplient la lumière rebondie par l'albedo de la surface impactée.
 
 ### Effet
 
@@ -159,7 +159,7 @@ La texture diffuse (`map`) de chaque mesh est rendue dans l'espace UV2 pour cré
 
 ### Implémentation
 
-- **`renderAtlas.ts`** : nouvelle fonction `renderAlbedoAtlas()` qui crée un `ShaderMaterial` par mesh (chacun avec sa propre texture `map`), positionne les vertices en UV2, et rend dans un render target commun avec dilation
+- **`renderAtlas.ts`** : nouvelle fonction `renderAlbedoAtlas()` qui crée un `ShaderMaterial` par mesh (chacun avec sa propre texture `map`), positionne les vertices en UV1, et rend dans un render target commun avec dilation
 - Les meshes sans `map` utilisent un fallback blanc (1×1 `DataTexture`)
 - L'offset de dilation est partagé via une référence `Vector2` commune à tous les matériaux
 - **`LightmapperMaterial.ts`** : uniform `albedoAtlas` (sampler2D), échantillonné au point d'impact du bounce :

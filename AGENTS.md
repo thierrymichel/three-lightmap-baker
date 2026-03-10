@@ -36,8 +36,8 @@ src/
 ├── index.ts                         # Browser entry (loads XAtlas, boots LightBakerExample)
 ├── LightBakerExample.ts             # Interactive demo: scene, camera, Tweakpane UI, render loop
 ├── atlas/
-│   ├── generateAtlas.ts             # XAtlas WASM loading + UV2 unwrap
-│   └── renderAtlas.ts               # Renders world-position & normal textures in UV2 space (with dilation)
+│   ├── generateAtlas.ts             # XAtlas WASM loading + UV1 unwrap
+│   └── renderAtlas.ts               # Renders world-position & normal textures in UV1 space (with dilation)
 ├── bake/
 │   ├── bakeLightmap.ts              # Programmatic API: load model → atlas → BVH → accumulate N samples → denoise → Uint8Array
 │   └── BakeEntry.ts                 # bake.html entry: reads URL params, calls bakeLightmap, exposes result on window
@@ -58,8 +58,8 @@ scripts/
 
 ### Bake pipeline
 
-1. **XAtlas** unwraps all meshes → `uv2` attribute
-2. **renderAtlas** renders meshes in UV2 space → position texture + normal texture (with texel dilation for seam bleeding)
+1. **XAtlas** unwraps all meshes → `uv1` attribute (`TEXCOORD_1` in glTF)
+2. **renderAtlas** renders meshes in UV1 space → position texture + normal texture (with texel dilation for seam bleeding)
 3. **mergeGeometry** + **MeshBVH** builds the acceleration structure
 4. **LightmapperMaterial** (fullscreen quad) reads position/normal textures, casts rays per texel via BVH:
    - Direct light (shadow rays toward point lights, soft shadows, inverse-square attenuation, dosable N·L)

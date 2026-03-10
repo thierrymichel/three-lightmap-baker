@@ -79,8 +79,8 @@ export const generateLightmapper = (
   bvh: MeshBVH,
   options: RaycastOptions,
 ): Lightmapper => {
-  const uv2Texture = new FloatVertexAttributeTexture()
-  uv2Texture.updateFrom(bvh.geometry.attributes.uv2 as BufferAttribute)
+  const uv1Texture = new FloatVertexAttributeTexture()
+  uv1Texture.updateFrom(bvh.geometry.attributes.uv1 as BufferAttribute)
 
   const raycastMaterial = new LightmapperMaterial({
     bvh,
@@ -97,7 +97,7 @@ export const generateLightmapper = (
     nDotLStrength: options.nDotLStrength,
     bounceEnabled: options.bounceEnabled,
     albedoEnabled: options.albedoEnabled,
-    uv2Attr: uv2Texture,
+    uv1Attr: uv1Texture,
     albedoAtlas: albedo,
   })
 

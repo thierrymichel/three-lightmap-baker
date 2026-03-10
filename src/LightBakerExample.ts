@@ -55,7 +55,7 @@ const renderMode = {
   Standard: 'standard',
   Positions: 'positions',
   Normals: 'normals',
-  'UV2 Debug': 'uv',
+  'UV1 Debug': 'uv',
   Lightmap: 'lightmap',
   Beauty: 'beauty',
 }
@@ -340,11 +340,13 @@ export class LightBakerExample {
     // Comptage des attributs de géométrie par occurrence (debug)
     if (CONFIG.debug) {
       const attrCounts: Record<string, number> = {}
+
       for (const m of this.currentModelMeshes) {
         for (const attrName of Object.keys(m.geometry.attributes)) {
           attrCounts[attrName] = (attrCounts[attrName] ?? 0) + 1
         }
       }
+
       const total = this.currentModelMeshes.length
       const table = Object.entries(attrCounts)
         .sort(([, a], [, b]) => b - a)
@@ -514,13 +516,13 @@ export class LightBakerExample {
                 : mode === 'uv'
                   ? this.uvDebugTexture
                   : this.lightmapTexture.texture
-          mat.lightMap.channel = 2
+          mat.lightMap.channel = 1
           if (mode === 'beauty') mat.map = mat._originalMap
         }
 
         if (mat.lightMap) {
           mat.lightMap.needsUpdate = true
-          mat.lightMap.channel = 2
+          mat.lightMap.channel = 1
         }
         mat.lightMapIntensity = 1
         mat.needsUpdate = true

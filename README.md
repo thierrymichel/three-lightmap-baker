@@ -32,12 +32,12 @@
 
 
 ## How it works
-1. Pass all the geomerty into [XAtlas-Three](https://github.com/repalash/xatlas-three/) (UV unwrapping library). This will generate a "UV2" attribute on the geometry.
-2. Render the geomerties vericies in the UV2 space. Create two textures (resolution being the lightmap resolution), using the gl_FragColor to encode **world position** and the **normal**. This is packing Vec3 data into a texture using the RGB channel.
+1. Pass all the geometry into [XAtlas-Three](https://github.com/repalash/xatlas-three/) (UV unwrapping library). This will generate a `uv1` attribute (`TEXCOORD_1` in glTF) on the geometry.
+2. Render the geometries vertices in the UV1 space. Create two textures (resolution being the lightmap resolution), using the gl_FragColor to encode **world position** and the **normal**. This is packing Vec3 data into a texture using the RGB channel.
 
 ![alt text](screenshots/lightmap6.png)
 ![alt text](screenshots/lightmap_combo.png)
-**Visual reference:** Using these textures as the lightmap (using UV2). 
+**Visual reference:** Using these textures as the lightmap (using UV1 / TEXCOORD_1). 
 
 3. These two texture are effectivly a 2D array of World Position & Normals covering the entire geomerty.
 4. Itterate through each World Position & Normal. Cast rays at each position to calculate incoming light.

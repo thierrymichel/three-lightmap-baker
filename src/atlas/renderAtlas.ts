@@ -16,13 +16,13 @@ import {
 
 const worldPositionVertexShader = `
     uniform vec2 offset;
-    attribute vec2 uv2;
+    attribute vec2 uv1;
     varying vec4 vWorldPosition;
 
     void main() {
         vWorldPosition = modelMatrix * vec4(position, 1.0) ;
 
-        gl_Position = vec4((uv2 + offset) * 2.0 - 1.0, 0.0, 1.0);
+        gl_Position = vec4((uv1 + offset) * 2.0 - 1.0, 0.0, 1.0);
     }
 `
 
@@ -46,13 +46,13 @@ const worldPositionMaterial = new ShaderMaterial({
 
 const normalVertexShader = `
     varying vec4 vNormal;
-    attribute vec2 uv2;
+    attribute vec2 uv1;
     uniform vec2 offset;
 
     void main() {
         vNormal = modelMatrix * vec4(normal, 0.0);
 
-        gl_Position = vec4((uv2 + offset) * 2.0 - 1.0, 0.0, 1.0);
+        gl_Position = vec4((uv1 + offset) * 2.0 - 1.0, 0.0, 1.0);
     }
 `
 
@@ -81,13 +81,13 @@ const normalMaterial = new ShaderMaterial({
 })
 
 const albedoVertexShader = `
-    attribute vec2 uv2;
+    attribute vec2 uv1;
     uniform vec2 offset;
     varying vec2 vOriginalUv;
 
     void main() {
         vOriginalUv = uv;
-        gl_Position = vec4((uv2 + offset) * 2.0 - 1.0, 0.0, 1.0);
+        gl_Position = vec4((uv1 + offset) * 2.0 - 1.0, 0.0, 1.0);
     }
 `
 
@@ -142,11 +142,11 @@ const offsets = [
 ]
 
 /**
- * Renders position, normal, and albedo textures in UV2 atlas space.
+ * Renders position, normal, and albedo textures in UV1 atlas space.
  * Optionally dilates texels to reduce seam bleeding.
  *
  * @param renderer - WebGL renderer
- * @param meshes - Meshes with uv2 attribute (from generateAtlas)
+ * @param meshes - Meshes with uv1 attribute (from generateAtlas)
  * @param resolution - Atlas texture size (e.g. 1024)
  * @param dilate - Whether to dilate texels (default: true)
  * @returns { positionTexture, normalTexture, albedoTexture }
