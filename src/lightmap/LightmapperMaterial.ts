@@ -31,6 +31,7 @@ export type LightmapperMaterialOptions = {
   nDotLStrength: number
   bounceEnabled: boolean
   albedoEnabled: boolean
+  rayEpsilon: number
   uv1Attr: DataTexture
   albedoAtlas: Texture
 }
@@ -83,6 +84,7 @@ export class LightmapperMaterial extends ShaderMaterial {
         nDotLStrength: { value: options.nDotLStrength },
         bounceEnabled: { value: options.bounceEnabled },
         albedoEnabled: { value: options.albedoEnabled },
+        rayEpsilon: { value: options.rayEpsilon },
         uv1Attr: { value: options.uv1Attr },
         albedoAtlas: { value: options.albedoAtlas },
       },
@@ -123,6 +125,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                 uniform float nDotLStrength;
                 uniform bool bounceEnabled;
                 uniform bool albedoEnabled;
+                uniform float rayEpsilon;
                 uniform sampler2D uv1Attr;
                 uniform sampler2D albedoAtlas;
                 uniform sampler2D previousFrame;
@@ -202,7 +205,7 @@ export class LightmapperMaterial extends ShaderMaterial {
                     vec3 rayOrigin = vec3(position.r, position.g, position.b);
                     vec3 rayDirection = vec3(normal.r, normal.g, normal.b);
 
-                    rayOrigin += rayDirection * 0.001;
+                    rayOrigin += rayDirection * rayEpsilon;
 
                     uvec4 faceIndices = uvec4( 0u );
                     vec3 faceNormal = vec3( 0.0, 0.0, 1.0 );

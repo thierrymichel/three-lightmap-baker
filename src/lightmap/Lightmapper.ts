@@ -48,6 +48,7 @@ export type RaycastOptions = {
   nDotLStrength: number
   bounceEnabled: boolean
   albedoEnabled: boolean
+  rayEpsilon: number
 }
 
 /** Lightmapper instance: render texture, render/denoise/reset methods. */
@@ -97,6 +98,7 @@ export const generateLightmapper = (
     nDotLStrength: options.nDotLStrength,
     bounceEnabled: options.bounceEnabled,
     albedoEnabled: options.albedoEnabled,
+    rayEpsilon: options.rayEpsilon,
     uv1Attr: uv1Texture,
     albedoAtlas: albedo,
   })

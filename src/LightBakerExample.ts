@@ -1,5 +1,6 @@
 import type { Texture, WebGLRenderTarget } from 'three'
 import {
+  Box3,
   Color,
   DirectionalLight,
   DoubleSide,
@@ -27,6 +28,7 @@ import type { Lightmapper, RaycastOptions } from './lightmap/Lightmapper'
 import { generateLightmapper } from './lightmap/Lightmapper'
 import { mergeGeometry } from './utils/GeometryUtils'
 import { LoadGLTF } from './utils/LoaderUtils'
+import { prepareScene } from './utils/SceneUtils'
 
 type PointLightConfig = {
   position: Vector3
@@ -90,6 +92,7 @@ export class LightBakerExample {
   debugLightmap: Mesh
 
   lightmapper: Lightmapper | null
+  scaleFactor = 1
 
   pane: Pane
 
@@ -287,12 +290,7 @@ export class LightBakerExample {
       this.scene.remove(this.currentModel)
     }
 
-    this.camera.position.set(3.5, 3, 4)
-    this.controls.target.set(1, 1, 1) // par exemple, centrer un peu plus haut
-    this.controls.update()
-
     this.currentModelMeshes = []
-
     this.lightmapper = null
 
     const gltf = await LoadGLTF(this.options.model)
@@ -310,13 +308,35 @@ export class LightBakerExample {
     this.currentModel = gltf.scene
     this.scene.add(gltf.scene)
 
+    const { scaleFactor } = prepareScene(gltf.scene)
+    this.scaleFactor = scaleFactor
+
+    for (let i = 0; i < this.pointLightConfigs.length; i++) {
+      const ref = defaultPointLights[i]
+      this.pointLightDummies[i].position
+        .copy(ref.position)
+        .multiplyScalar(scaleFactor)
+    }
+
+    const box = new Box3().setFromObject(gltf.scene)
+    const size = box.getSize(new Vector3())
+    const center = box.getCenter(new Vector3())
+    const maxDim = Math.max(size.x, size.y, size.z)
+
+    this.camera.position.set(
+      center.x + maxDim * 0.5,
+      center.y + maxDim * 0.35,
+      center.z + maxDim * 0.55,
+    )
+    this.controls.target.copy(center)
+    this.controls.update()
+
     await this.updateAtlasTextures()
 
     this.update()
 
     await this.generateLightmap()
 
-    // Render once to get the lightmap
     this.lightmapper.render()
   }
 
@@ -363,15 +383,17 @@ export class LightBakerExample {
     const mergedGeometry = mergeGeometry(this.currentModelMeshes)
     const bvh = new MeshBVH(mergedGeometry)
 
+    const s = this.scaleFactor
+
     const pointLights = this.pointLightConfigs
       .map((cfg, i) => ({ cfg, dummy: this.pointLightDummies[i] }))
       .filter(({ cfg }) => cfg.enabled)
       .map(({ cfg, dummy }) => ({
         position: dummy.position,
-        size: cfg.size,
+        size: cfg.size * s,
         intensity: this.options.lightIntensity,
         color: new Color(0xffffff),
-        distance: this.options.lightRadius,
+        distance: this.options.lightRadius * s,
       }))
 
     const lightmapperOptions: RaycastOptions = {
@@ -380,13 +402,14 @@ export class LightBakerExample {
       filterMode:
         this.options.filterMode === 'linear' ? LinearFilter : NearestFilter,
       pointLights,
-      ambientDistance: this.options.ambientDistance,
+      ambientDistance: this.options.ambientDistance * s,
       nDotLStrength: this.options.nDotLStrength,
       ambientLightEnabled: this.options.ambientLightEnabled,
       directLightEnabled: this.options.directLightEnabled,
       indirectLightEnabled: this.options.indirectLightEnabled,
       bounceEnabled: this.options.bounce,
       albedoEnabled: this.options.albedo,
+      rayEpsilon: 0.001 * s,
     }
 
     this.lightmapper = await generateLightmapper(
@@ -444,9 +467,21 @@ export class LightBakerExample {
         this.pointLightControls[i].getHelper().visible = cfg.enabled
         this.generateLightmap()
       })
-      folder.addBinding(dummy.position, 'x', { readonly: true, label: 'pos x' })
-      folder.addBinding(dummy.position, 'y', { readonly: true, label: 'pos y' })
-      folder.addBinding(dummy.position, 'z', { readonly: true, label: 'pos z' })
+      const refPos = {
+        get x() {
+          return dummy.position.x / self.scaleFactor
+        },
+        get y() {
+          return dummy.position.y / self.scaleFactor
+        },
+        get z() {
+          return dummy.position.z / self.scaleFactor
+        },
+      }
+      const self = this
+      folder.addBinding(refPos, 'x', { readonly: true, label: 'pos x' })
+      folder.addBinding(refPos, 'y', { readonly: true, label: 'pos y' })
+      folder.addBinding(refPos, 'z', { readonly: true, label: 'pos z' })
       folder.addBinding(cfg, 'size', { min: 0, max: 20, step: 0.5 })
     }
   }

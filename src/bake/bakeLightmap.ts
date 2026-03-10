@@ -9,6 +9,7 @@ import type { LightDef } from '../lightmap/Lightmapper'
 import { generateLightmapper } from '../lightmap/Lightmapper'
 import { mergeGeometry } from '../utils/GeometryUtils'
 import { LoadGLTF } from '../utils/LoaderUtils'
+import { prepareScene } from '../utils/SceneUtils'
 
 /** Options for the headless bake pipeline. */
 export type BakeOptions = {
@@ -99,6 +100,8 @@ export async function bakeLightmap(
     console.log(`[bake] ${meshes.length} meshes loaded`)
   }
 
+  const { scaleFactor } = prepareScene(gltf.scene)
+
   await generateAtlas(meshes)
   if (CONFIG.debug) {
     console.log('[bake] Atlas UV1 generated')
@@ -116,6 +119,13 @@ export async function bakeLightmap(
     console.log('[bake] BVH built')
   }
 
+  const s = scaleFactor
+  const scaledLights = options.pointLights.map((l) => ({
+    ...l,
+    size: l.size * s,
+    distance: l.distance * s,
+  }))
+
   const lightmapper = generateLightmapper(
     renderer,
     atlas.positionTexture,
@@ -126,14 +136,15 @@ export async function bakeLightmap(
       resolution,
       casts: options.casts,
       filterMode: options.filterMode ?? LinearFilter,
-      pointLights: options.pointLights,
-      ambientDistance: options.ambientDistance,
+      pointLights: scaledLights,
+      ambientDistance: options.ambientDistance * s,
       nDotLStrength: options.nDotLStrength,
       ambientLightEnabled: options.ambientLightEnabled,
       directLightEnabled: options.directLightEnabled,
       indirectLightEnabled: options.indirectLightEnabled,
       bounceEnabled: options.bounceEnabled,
       albedoEnabled: options.albedoEnabled,
+      rayEpsilon: 0.001 * s,
     },
   )
 
