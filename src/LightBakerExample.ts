@@ -47,6 +47,7 @@ const models = {
   'dressing.glb': 'dressing.glb',
   'dressing_x1.glb': 'dressing_x1.glb',
   'dressing_x5.glb': 'dressing_x5.glb',
+  'dressing_x5_no_uv1.glb': 'dressing_x5_no_uv1.glb',
   'iles.glb': 'iles.glb',
   'ile_energie.glb': 'ile_energie.glb',
 }
