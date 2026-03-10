@@ -13,10 +13,10 @@ export const mergeGeometry = (meshes: Mesh[]) => {
     meshes.map((mesh) => {
       const lightmapMesh = new Mesh(mesh.geometry.clone(), mesh.material)
 
-      // Attributs non utilisés par le pipeline (position, normal, uv, uv2)
+      // Keeps: position, normal, uv, uv1
       lightmapMesh.geometry.deleteAttribute('color')
+      // TODO: make this more flexible
       lightmapMesh.geometry.deleteAttribute('color_1')
-      lightmapMesh.geometry.deleteAttribute('uv1')
       lightmapMesh.geometry.applyMatrix4(mesh.matrixWorld)
 
       return lightmapMesh.geometry
