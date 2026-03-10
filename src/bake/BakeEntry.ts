@@ -132,15 +132,12 @@ async function main() {
   }
 
   if (result.groups.length === 1) {
-    window.__bakeResult = pixelsToDataURL(
-      result.groups[0].pixels,
-      config.resolution,
-      config.resolution,
-    )
+    const g = result.groups[0]
+    window.__bakeResult = pixelsToDataURL(g.pixels, g.resolution, g.resolution)
   } else {
     window.__bakeResult = JSON.stringify(
       result.groups.map((g) =>
-        pixelsToDataURL(g.pixels, config.resolution, config.resolution),
+        pixelsToDataURL(g.pixels, g.resolution, g.resolution),
       ),
     )
   }

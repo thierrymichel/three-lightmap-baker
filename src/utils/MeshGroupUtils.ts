@@ -42,6 +42,19 @@ type MaterialBlock = {
   totalArea: number
 }
 
+export type MeshGroup = {
+  meshes: Mesh[]
+  area: number
+}
+
+const RESOLUTION_STEP = 128
+const MIN_RESOLUTION = 256
+const MAX_RESOLUTION = 4096
+
+function roundToStep(value: number): number {
+  return Math.round(value / RESOLUTION_STEP) * RESOLUTION_STEP
+}
+
 /**
  * Groups meshes by shared Material instance into atomic blocks,
  * then bin-packs those blocks into N groups by cumulative surface area.
@@ -51,10 +64,16 @@ type MaterialBlock = {
  *
  * @param meshes - All scene meshes (matrixWorld must be up-to-date)
  * @param numGroups - Target number of groups (1 = no split)
- * @returns Array of mesh arrays, one per group
+ * @returns Array of mesh groups with per-group surface area
  */
-export function splitMeshGroups(meshes: Mesh[], numGroups: number): Mesh[][] {
-  if (numGroups <= 1 || meshes.length <= 1) return [meshes]
+export function splitMeshGroups(
+  meshes: Mesh[],
+  numGroups: number,
+): MeshGroup[] {
+  if (numGroups <= 1 || meshes.length <= 1) {
+    const area = meshes.reduce((sum, m) => sum + computeSurfaceArea(m), 0)
+    return [{ meshes, area }]
+  }
 
   const blockMap = new Map<Material, MaterialBlock>()
   for (const mesh of meshes) {
@@ -73,12 +92,6 @@ export function splitMeshGroups(meshes: Mesh[], numGroups: number): Mesh[][] {
 
   const effectiveGroups = Math.min(numGroups, blocks.length)
 
-  if (CONFIG.debug) {
-    console.log(
-      `[split] ${meshes.length} meshes → ${blocks.length} material blocks → ${effectiveGroups} groups`,
-    )
-  }
-
   const groups: { meshes: Mesh[]; totalArea: number }[] = Array.from(
     { length: effectiveGroups },
     () => ({ meshes: [], totalArea: 0 }),
@@ -92,5 +105,87 @@ export function splitMeshGroups(meshes: Mesh[], numGroups: number): Mesh[][] {
     lightest.totalArea += block.totalArea
   }
 
-  return groups.filter((g) => g.meshes.length > 0).map((g) => g.meshes)
+  const result = groups
+    .filter((g) => g.meshes.length > 0)
+    .map((g) => ({ meshes: g.meshes, area: g.totalArea }))
+
+  if (CONFIG.debug) {
+    console.log(
+      `[split] ${meshes.length} meshes → ${blocks.length} material blocks → ${result.length} groups`,
+    )
+  }
+
+  return result
+}
+
+/**
+ * Computes per-group texture resolutions for uniform texel density.
+ *
+ * Uses a pixel-area budget (baseResolution² × numGroups) distributed
+ * proportionally to surface area, then takes sqrt to get resolution.
+ * This ensures pixels_per_unit_area is constant across groups.
+ *
+ * Excess budget from groups clamped to MAX_RESOLUTION is iteratively
+ * redistributed to unclamped groups until stable.
+ *
+ * @param groups - Mesh groups with surface area from splitMeshGroups
+ * @param baseResolution - Base lightmap resolution (e.g. 2048)
+ * @param numGroups - Number of atlas groups (for budget calculation)
+ * @returns Per-group resolution array (same order as input)
+ */
+export function computeGroupResolutions(
+  groups: MeshGroup[],
+  baseResolution: number,
+  numGroups: number,
+): number[] {
+  if (groups.length <= 1) return [baseResolution]
+
+  const totalArea = groups.reduce((sum, g) => sum + g.area, 0)
+  if (totalArea === 0) return groups.map(() => baseResolution)
+
+  const totalPixelBudget = baseResolution * baseResolution * numGroups
+  const resolutions = new Array<number>(groups.length).fill(0)
+  const clamped = new Array<boolean>(groups.length).fill(false)
+
+  let remainingBudget = totalPixelBudget
+  let remainingArea = totalArea
+
+  for (let iter = 0; iter < groups.length; iter++) {
+    let changed = false
+
+    for (let i = 0; i < groups.length; i++) {
+      if (clamped[i]) continue
+
+      const raw = Math.sqrt(remainingBudget * (groups[i].area / remainingArea))
+      const rounded = roundToStep(raw)
+      resolutions[i] = Math.max(
+        MIN_RESOLUTION,
+        Math.min(MAX_RESOLUTION, rounded),
+      )
+
+      if (resolutions[i] === MAX_RESOLUTION && raw > MAX_RESOLUTION) {
+        clamped[i] = true
+        remainingBudget -= MAX_RESOLUTION * MAX_RESOLUTION
+        remainingArea -= groups[i].area
+        changed = true
+      } else if (resolutions[i] === MIN_RESOLUTION && raw < MIN_RESOLUTION) {
+        clamped[i] = true
+        remainingBudget -= MIN_RESOLUTION * MIN_RESOLUTION
+        remainingArea -= groups[i].area
+        changed = true
+      }
+    }
+
+    if (!changed) break
+  }
+
+  if (CONFIG.debug) {
+    const usedPixels = resolutions.reduce((s, r) => s + r * r, 0)
+    console.log(
+      `[split] Resolutions (pixel budget ${totalPixelBudget}, used ${usedPixels}):`,
+      resolutions.map((r, i) => `group ${i}: ${r}`).join(', '),
+    )
+  }
+
+  return resolutions
 }

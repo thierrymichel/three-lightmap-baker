@@ -28,7 +28,11 @@ import type { Lightmapper, RaycastOptions } from './lightmap/Lightmapper'
 import { generateLightmapper } from './lightmap/Lightmapper'
 import { mergeGeometry } from './utils/GeometryUtils'
 import { LoadGLTF } from './utils/LoaderUtils'
-import { splitMeshGroups } from './utils/MeshGroupUtils'
+import {
+  computeGroupResolutions,
+  type MeshGroup,
+  splitMeshGroups,
+} from './utils/MeshGroupUtils'
 import { prepareScene } from './utils/SceneUtils'
 
 type PointLightConfig = {
@@ -100,7 +104,7 @@ export class LightBakerExample {
 
   lightmapGroups: LightmapGroup[] = []
   meshToGroup: Map<Mesh, LightmapGroup> = new Map()
-  meshGroupAssignment: Mesh[][] = []
+  meshGroupAssignment: MeshGroup[] = []
   lastAtlasGroups = 0
 
   scaleFactor = 1
@@ -208,7 +212,7 @@ export class LightBakerExample {
     })
     lightMapFolder.addBinding(this.options, 'atlasGroups', {
       label: 'atlas groups',
-      max: 8,
+      max: 12,
       min: 1,
       step: 1,
     })
@@ -372,8 +376,8 @@ export class LightBakerExample {
     )
     this.lastAtlasGroups = this.options.atlasGroups
 
-    for (const groupMeshes of this.meshGroupAssignment) {
-      await generateAtlas(groupMeshes)
+    for (const group of this.meshGroupAssignment) {
+      await generateAtlas(group.meshes)
     }
 
     if (CONFIG.debug) {
@@ -384,17 +388,27 @@ export class LightBakerExample {
   }
 
   async generateLightmap() {
-    const resolution = this.options.lightMapSize
     const groups =
       this.meshGroupAssignment.length > 0
         ? this.meshGroupAssignment
-        : [this.currentModelMeshes]
+        : [
+            {
+              meshes: this.currentModelMeshes,
+              area: 0,
+            },
+          ]
+
+    const groupResolutions = computeGroupResolutions(
+      groups,
+      this.options.lightMapSize,
+      this.options.atlasGroups,
+    )
 
     this.lightmapGroups = []
     this.meshToGroup = new Map()
 
-    const atlases = groups.map((groupMeshes) =>
-      renderAtlas(this.renderer, groupMeshes, resolution, true),
+    const atlases = groups.map((group, gi) =>
+      renderAtlas(this.renderer, group.meshes, groupResolutions[gi], true),
     )
 
     this.positionTexture = atlases[0].positionTexture
@@ -447,8 +461,9 @@ export class LightBakerExample {
     }
 
     for (let gi = 0; gi < groups.length; gi++) {
+      const res = groupResolutions[gi]
       const lightmapperOptions: RaycastOptions = {
-        resolution,
+        resolution: res,
         casts: this.options.casts,
         filterMode:
           this.options.filterMode === 'linear' ? LinearFilter : NearestFilter,
@@ -473,13 +488,13 @@ export class LightBakerExample {
       )
 
       const group: LightmapGroup = {
-        meshes: groups[gi],
+        meshes: groups[gi].meshes,
         lightmapper,
         positionTexture: atlases[gi].positionTexture,
         normalTexture: atlases[gi].normalTexture,
       }
       this.lightmapGroups.push(group)
-      for (const mesh of groups[gi]) {
+      for (const mesh of groups[gi].meshes) {
         this.meshToGroup.set(mesh, group)
       }
     }
@@ -487,7 +502,12 @@ export class LightBakerExample {
     if (CONFIG.debug && isMultiAtlas) {
       console.log(
         `[multi-atlas] ${groups.length} groups:`,
-        groups.map((g, i) => `group ${i}: ${g.length} meshes`).join(', '),
+        groups
+          .map(
+            (g, i) =>
+              `group ${i}: ${g.meshes.length} meshes @ ${groupResolutions[i]}`,
+          )
+          .join(', '),
       )
     }
 

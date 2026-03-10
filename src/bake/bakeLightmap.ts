@@ -9,7 +9,10 @@ import type { LightDef } from '../lightmap/Lightmapper'
 import { generateLightmapper } from '../lightmap/Lightmapper'
 import { mergeGeometry } from '../utils/GeometryUtils'
 import { LoadGLTF } from '../utils/LoaderUtils'
-import { splitMeshGroups } from '../utils/MeshGroupUtils'
+import {
+  computeGroupResolutions,
+  splitMeshGroups,
+} from '../utils/MeshGroupUtils'
 import { prepareScene } from '../utils/SceneUtils'
 
 /** Options for the headless bake pipeline. */
@@ -68,6 +71,7 @@ export const defaultBakeOptions: Omit<BakeOptions, 'modelUrl'> = {
 export type BakeGroupResult = {
   meshes: Mesh[]
   pixels: Uint8Array
+  resolution: number
   renderTarget: WebGLRenderTarget
 }
 
@@ -111,17 +115,22 @@ export async function bakeLightmap(
 
   const { scaleFactor } = prepareScene(gltf.scene)
 
-  const meshGroupsList = splitMeshGroups(meshes, atlasGroups)
-  const isMultiAtlas = meshGroupsList.length > 1
+  const meshGroups = splitMeshGroups(meshes, atlasGroups)
+  const isMultiAtlas = meshGroups.length > 1
+  const groupResolutions = computeGroupResolutions(
+    meshGroups,
+    resolution,
+    atlasGroups,
+  )
 
   if (CONFIG.debug) {
     console.log(
-      `[bake] ${meshes.length} meshes → ${meshGroupsList.length} group(s)`,
+      `[bake] ${meshes.length} meshes → ${meshGroups.length} group(s)`,
     )
   }
 
-  for (const groupMeshes of meshGroupsList) {
-    await generateAtlas(groupMeshes)
+  for (const group of meshGroups) {
+    await generateAtlas(group.meshes)
   }
   if (CONFIG.debug) {
     console.log('[bake] Atlas UV1 generated')
@@ -148,10 +157,12 @@ export async function bakeLightmap(
     )
   }
 
-  const lightmappers = meshGroupsList.map((groupMeshes) => {
-    const atlas = renderAtlas(renderer, groupMeshes, resolution, true)
+  const lightmappers = meshGroups.map((group, gi) => {
+    const res = groupResolutions[gi]
+    const atlas = renderAtlas(renderer, group.meshes, res, true)
     return {
-      meshes: groupMeshes,
+      meshes: group.meshes,
+      resolution: res,
       lightmapper: generateLightmapper(
         renderer,
         atlas.positionTexture,
@@ -159,7 +170,7 @@ export async function bakeLightmap(
         atlas.albedoTexture,
         bvh,
         {
-          resolution,
+          resolution: res,
           casts: options.casts,
           filterMode: options.filterMode ?? LinearFilter,
           pointLights: scaledLights,
@@ -201,11 +212,11 @@ export async function bakeLightmap(
   }
 
   const groups: BakeGroupResult[] = lightmappers.map(
-    ({ meshes: groupMeshes, lightmapper }, gi) => {
+    ({ meshes: groupMeshes, lightmapper, resolution: res }, gi) => {
       const rt = lightmapper.renderTexture
-      const pixels = new Float32Array(resolution * resolution * 4)
+      const pixels = new Float32Array(res * res * 4)
 
-      renderer.readRenderTargetPixels(rt, 0, 0, resolution, resolution, pixels)
+      renderer.readRenderTargetPixels(rt, 0, 0, res, res, pixels)
 
       if (CONFIG.debug) {
         let min = Infinity
@@ -218,7 +229,7 @@ export async function bakeLightmap(
           if (v > 0) nonZero++
         }
         const prefix = isMultiAtlas ? `[bake] Group ${gi}` : '[bake]'
-        console.log(`${prefix} Pixels debug:`, {
+        console.log(`${prefix} (${res}×${res}) Pixels debug:`, {
           min,
           max,
           nonZero,
@@ -226,12 +237,17 @@ export async function bakeLightmap(
         })
       }
 
-      const output = new Uint8Array(resolution * resolution * 4)
+      const output = new Uint8Array(res * res * 4)
       for (let i = 0; i < pixels.length; i++) {
         output[i] = Math.max(0, Math.min(255, Math.round(pixels[i] * 255)))
       }
 
-      return { meshes: groupMeshes, pixels: output, renderTarget: rt }
+      return {
+        meshes: groupMeshes,
+        pixels: output,
+        resolution: res,
+        renderTarget: rt,
+      }
     },
   )
 
